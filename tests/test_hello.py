@@ -3,11 +3,16 @@ import threading
 import pytest
 from basic_rpc.rpc_low_level import ProtocolError
 from random import randint
+from time import sleep
 
 @pytest.fixture(scope='module')
 def client(hello_client_module_scope, hello_server_cm):
-    with hello_server_cm(), hello_client_module_scope:
-        yield hello_client_module_scope
+    with hello_server_cm():
+        # give server time to spool up (otherwise, could get
+        # ConnectionRefusedError)
+        sleep(1)
+        with hello_client_module_scope:
+            yield hello_client_module_scope
 
 def test_hello_goodbye(client):
     client.hello('Robert')
