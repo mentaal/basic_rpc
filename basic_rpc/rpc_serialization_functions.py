@@ -137,7 +137,7 @@ def make_serializer(*serializer_funcs) -> Callable:
         return b''.join((f(a) for f,a in zip(serializer_funcs, args)))
     return serializer
 
-def make_starmap(func):
+def make_apply(func):
     """Useful when using `make_serializer` in a server context when serializing
     the response from the invoked function.
     """

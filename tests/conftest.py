@@ -11,7 +11,7 @@ from basic_rpc.rpc_spec import RpcServerSpec, RpcServerResp, RpcClientSpec, RpcC
 from basic_rpc.rpc_serialization_functions import (serialize_str,
         deserialize_str, deserialize_str_only, make_serializer, make_deserializer,
         make_serialize_array_fixed_size, make_deserialize_array_fixed_size,
-        make_serialize_array, make_deserialize_array, make_starmap,
+        make_serialize_array, make_deserialize_array, make_apply,
         make_deserializer_to_tuple,
         parse_int_from_le_bytes_4, int_to_le_bytes_4, int_from_le_bytes_4,
         call_no_args, parse_no_response,
@@ -121,7 +121,7 @@ greet_server_spec = RpcServerSpec(
                         element_size = 4,
                         element_parser = parse_int_from_le_bytes_4),
                     deserialize_str),
-                serialize_response = make_starmap(
+                serialize_response = make_apply(
                     make_serializer(int_to_le_bytes_4, serialize_str)
                     ),
                 client_function = lambda arr, s: (sum(arr), s)
