@@ -6,13 +6,13 @@ from enum import Enum
 
 class RpcClientReq(NamedTuple):
     cmd_id:Enum
-    serialize_request:Callable[[...], bytes]
+    serialize_request:Callable[..., bytes]
     parse_response:Callable[[bytes], Any]
 
 class RpcServerResp(NamedTuple):
     cmd_id:Enum
     parse_and_call:Callable[[bytes], Any]
-    serialize_response:Callable[[...], bytes]
+    serialize_response:Callable[..., bytes]
     client_function:Callable
 
 class RpcClientSpec(NamedTuple):

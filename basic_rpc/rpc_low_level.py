@@ -134,13 +134,13 @@ def serialize_helper(msg_type:Enum, payload:bytes):
 serialize_client_init = partial(serialize_helper, ClientMsgTypeBytes.MSG_CLIENT_INIT)
 serialize_server_rpc_response = partial(serialize_helper, ServerMsgTypeBytes.MSG_SERVER_RPC_RESP)
 
-def serialize_client_rpc_req(cmd_id:Enum, bs:bytes) -> tuple[bytes]:
+def serialize_client_rpc_req(cmd_id:Enum, bs:bytes) -> Tuple[bytes]:
     return serialize_helper(
             msg_type = ClientMsgTypeBytes.MSG_CLIENT_RPC_REQ,
             payload = b''.join([serialize_cmd_enum(cmd_id), bs]),
     )
 
-def serialize_server_init_resp(success:bool) -> tuple[bytes]:
+def serialize_server_init_resp(success:bool) -> Tuple[bytes]:
     return serialize_helper(
         msg_type = ServerMsgTypeBytes.MSG_SERVER_INIT,
         payload = serialize_bool(success),

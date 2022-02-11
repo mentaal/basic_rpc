@@ -204,7 +204,8 @@ def accepter(
     child_threads = []
 
     host_name, port = host
-    log_print(f'listening for connections at {host_name} on port: {port}')
+    displayed_host_name = 'all interfaces' if host_name == '' else host_name
+    log_print(f'listening for connections on {displayed_host_name} on port: {port}')
 
     while True:
         if shutdown_event.is_set():
