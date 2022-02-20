@@ -7,7 +7,7 @@ from enum import Enum
 import pytest
 from functools import partial
 
-from basic_rpc.rpc_spec import RpcServerSpec, RpcServerResp, RpcClientSpec, RpcClientReq
+from basic_rpc.rpc_spec import RpcServerResp, RpcClientSpec, RpcClientReq
 from basic_rpc.rpc_serialization_functions import (serialize_str,
         deserialize_str, deserialize_str_only, make_serializer, make_deserializer,
         make_serialize_array_fixed_size, make_deserialize_array_fixed_size,
@@ -16,7 +16,7 @@ from basic_rpc.rpc_serialization_functions import (serialize_str,
         parse_int_from_le_bytes_4, int_to_le_bytes_4, int_from_le_bytes_4,
         call_no_args, parse_no_response,
 )
-from basic_rpc.rpc_threaded_server import serve_cm
+from basic_rpc.rpc_threaded_server import make_exclusive_access_server_cm
 from basic_rpc.rpc_blocking_client import gen_client_class
 
 
@@ -42,40 +42,7 @@ class greet_client_cmd_ids(Enum):
     sum_array_echo_string = 6
     unknown_on_server = 10
 
-def single_client_only_connect(shared_data:dict, local_data:dict) -> bool:
-    """Only allow a single client to use the RPC service at a time
-    :param shared_data: data shared across all connected users
-    :param local_data: data local to the connected user
-    :returns: A boolean to indicate if a RPC session can continue with this user
-    """
-    locally_connected_already = local_data['user_connected']
-    if locally_connected_already:
-        raise ValueError("User attempting to connect but already connected. This shouldn't happen")
-
-    # TODO consider adding more logic here to implement a fair queue for users waiting on service
-    user_can_connect = not shared_data['user_connected']
-    if user_can_connect:
-        shared_data['user_connected'] = True
-        local_data['user_connected'] = True
-    return user_can_connect
-
-def single_client_only_disconnect(shared_data:dict, local_data:dict) -> bool:
-    connected_local = local_data['user_connected']
-    connected_shared = shared_data['user_connected']
-    owns_session = connected_local and connected_shared
-    bad_state = connected_local and not connected_shared
-    if bad_state:
-        raise ValueError("Bad state: User reports as being connected but shared session data doesn't agree")
-
-    if owns_session:
-        shared_data['user_connected'] = False
-
-    local_data['user_connected'] = False
-
-gen_local_data = lambda: {'user_connected': False}
-
-greet_server_spec = RpcServerSpec(
-        responses = [
+exclusive_access_cm = make_exclusive_access_server_cm(
             RpcServerResp(
                 cmd_id = greet_server_cmd_ids.hello,
                 parse_and_call = make_deserializer(deserialize_str),
@@ -132,10 +99,6 @@ greet_server_spec = RpcServerSpec(
                 serialize_response = lambda _: b'',
                 client_function = lambda: print('hello with no args') or None
             ),
-        ],
-        on_server_init = lambda: ({'user_connected':False}, gen_local_data),
-        on_client_connect = single_client_only_connect,
-        on_client_disconnect = single_client_only_disconnect,
 )
 
 greet_client_spec = RpcClientSpec(
@@ -216,7 +179,4 @@ def hello_client_module_scope(hello_client_class):
 
 @pytest.fixture(scope='session')
 def hello_server_cm():
-    return partial(serve_cm,
-                   host_name=HOST_NAME,
-                   port=PORT,
-                   server_spec = greet_server_spec)
+    return exclusive_access_cm(host_name=HOST_NAME, port=PORT)

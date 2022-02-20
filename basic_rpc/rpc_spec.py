@@ -1,4 +1,4 @@
-"""Module to hold RPC spec for rpc implementation. 
+"""Module to hold RPC spec for rpc implementation.
 """
 
 from typing import NamedTuple, Callable, Any, List, Tuple

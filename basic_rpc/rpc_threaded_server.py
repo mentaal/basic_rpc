@@ -7,12 +7,13 @@ See rpc_low_level.py for more discussion on the protocol
 import threading
 import socket
 import signal
-from typing import Tuple, Any
+from typing import Tuple, Any, Callable
 from logging import debug, error as log_error
 from time import sleep
 from contextlib import contextmanager
+from functools import wraps, partial
 
-from .rpc_spec import RpcServerSpec
+from .rpc_spec import RpcServerSpec, RpcServerResp
 from .rpc_low_level import (ClientMsgTypeBytes,
     serialize_exception, REQ_HDR_PREFIX_SIZE, MAJOR_VERSION, deserialize_version,
     serialize_server_init_resp, deserialize_cmd_id, serialize_server_rpc_response,
@@ -248,7 +249,7 @@ def serve(host_name:str,
     accepter_thread = threading.Thread(
             target=accepter,
             kwargs = {
-                'host' : (host_name, port), 
+                'host' : (host_name, port),
                 'server_spec' : server_spec,
                 'shutdown_event' : shutdown_event,
             }
@@ -266,18 +267,89 @@ def serve(host_name:str,
         debug('accepter thread finished')
         raise
 
-@contextmanager
-def serve_cm(*args, **kwargs):
-    shutdown_event = threading.Event()
-    kwargs['_shutdown_event'] = shutdown_event
+def make_serve(server_spec:RpcServerSpec) -> Callable:
+    return partial(serve, server_spec = server_spec)
 
-    server_thread = threading.Thread(target=serve, args=args, kwargs=kwargs)
-    server_thread.start()
-    debug("Started server thread from context manager...")
-    try:
-        yield
-    finally:
-        debug('Shutting down server')
-        shutdown_event.set()
-        safe_join(server_thread)
-        debug('Shutdown complete)')
+def make_serve_cm(server:Callable) -> Callable:
+    """Make a context manager in which to run the supplied server
+    :param: Already made server (using something like `make_serve`)
+    :returns: The context manager
+    """
+    shutdown_event = threading.Event()
+    @contextmanager
+    def serve_cm(
+          host_name:str,
+          port:int,
+    ) -> Callable:
+        kwargs = {
+                '_shutdown_event' : shutdown_event,
+                'host_name' : host_name,
+                'port' : port,
+        }
+
+        server_thread = threading.Thread(target=server, kwargs=kwargs)
+        server_thread.start()
+        debug("Started server thread from context manager...")
+        try:
+            yield
+        finally:
+            debug('Shutting down server')
+            shutdown_event.set()
+            safe_join(server_thread)
+            debug('Shutdown complete')
+
+    return serve_cm
+
+
+#####################################################
+# Logic to implement an exclusive access RPC service
+
+def single_client_only_connect(shared_data:dict, local_data:dict) -> bool:
+    """Only allow a single client to use the RPC service at a time
+    :param shared_data: data shared across all connected users
+    :param local_data: data local to the connected user
+    :returns: A boolean to indicate if a RPC session can continue with this user
+    """
+    locally_connected_already = local_data['user_connected']
+    if locally_connected_already:
+        raise ValueError("User attempting to connect but already connected. This shouldn't happen")
+
+    # TODO consider adding more logic here to implement a fair queue for users waiting on service
+    user_can_connect = not shared_data['user_connected']
+    if user_can_connect:
+        shared_data['user_connected'] = True
+        local_data['user_connected'] = True
+    return user_can_connect
+
+def single_client_only_disconnect(shared_data:dict, local_data:dict) -> bool:
+    connected_local = local_data['user_connected']
+    connected_shared = shared_data['user_connected']
+    owns_session = connected_local and connected_shared
+    bad_state = connected_local and not connected_shared
+    if bad_state:
+        raise ValueError("Bad state: User reports as being connected but shared session data doesn't agree")
+
+    if owns_session:
+        shared_data['user_connected'] = False
+
+    local_data['user_connected'] = False
+
+gen_exclusive_access_data = lambda: {'user_connected': False}
+
+def make_exclusive_access_server(responses:Tuple[RpcServerResp]) -> Callable:
+    server_spec = RpcServerSpec(
+            responses = responses,
+            # return an instance of shared data as well as the factory function
+            # which produced it because it just so happens that the shared data
+            # shape matches the local data in this instance
+            on_server_init = lambda: (gen_exclusive_access_data(),
+                                      gen_exclusive_access_data),
+            on_client_connect = single_client_only_connect,
+            on_client_disconnect = single_client_only_disconnect,
+    )
+    return make_serve(server_spec)
+
+def make_exclusive_access_server_cm(*responses:Tuple[RpcServerResp]) -> Callable:
+    server = make_exclusive_access_server(responses)
+    return make_serve_cm(server)
+
