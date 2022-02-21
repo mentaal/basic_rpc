@@ -209,6 +209,9 @@ def call_no_args(func:Callable, bs:bytes):
         raise ValueError('Expected no arguments in function invocation')
     return func()
 
+def serialize_no_response(_):
+    return b''
+
 def parse_no_response(bs:bytes):
     len_bs = len(bs)
     if len_bs:
