@@ -29,6 +29,7 @@ class RpcServerSpec(NamedTuple):
     # as locks. Return a dictionary shared by all connected users and also
     # a factory function which returns a dictionary which is local to each user
     on_server_init:Callable[[], Tuple[dict, Callable]] = lambda: ({}, lambda: {})
+    on_server_close:Callable[[dict],None] = lambda _: None
     # this should be a function accepting a connection specific dictionary which
     # returns a boolean where:
     # True indicates that the connection will be allowed to continue

@@ -210,14 +210,7 @@ def accepter(
 
     while True:
         if shutdown_event.is_set():
-            debug("waiting for down client threads")
-            for thread in child_threads:
-                safe_join(thread)
-            debug("client threads shutdown")
-            sock.close()
-            debug("accepter thread done")
-            return
-
+            break
         try:
             client_sock, address = sock.accept()
             client_sock.settimeout(2.0)
@@ -236,6 +229,14 @@ def accepter(
         child_threads[:] = (t for t in child_threads if t.is_alive())
         child_threads.append(thread)
         thread.start()
+    debug("waiting for down client threads")
+    for thread in child_threads:
+        safe_join(thread)
+    debug("client threads shutdown")
+    sock.close()
+    server_spec.on_server_close(shared_data)
+    debug("accepter thread done")
+
 
 def serve_client_thread(socket_server:SocketServer):
     socket_server.run()
