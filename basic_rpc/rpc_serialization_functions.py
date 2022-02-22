@@ -116,12 +116,17 @@ def _deserializer_helper_and_remaining(parsers:Iterable[Callable], bs:bytes) -> 
         yield result
     yield bs # remaining bytes - needs to be accounted for in calling code
 
-def make_deserializer(*args) -> Callable:
+def make_server_deserializer(*args) -> Callable:
     def deserializer(bs:bytes):
         return _deserializer_helper(args, bs)
     def deserialize_and_call(func:Callable, bs:bytes):
         return func(*deserializer(bs))
     return deserialize_and_call
+
+def make_client_deserializer(*args) -> Callable:
+    def deserializer(bs:bytes):
+        return _deserializer_helper(args, bs)
+    return deserializer
 
 def make_deserializer_to_tuple(*args) -> Callable:
     def deserialize(bs:bytes):

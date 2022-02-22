@@ -2,7 +2,7 @@ from enum import Enum
 import argparse
 from basic_rpc.rpc_spec import RpcServerSpec, RpcServerResp
 from basic_rpc.rpc_serialization_functions import (serialize_str,
-        deserialize_str, make_deserializer,
+        deserialize_str, make_server_deserializer,
         parse_int_from_le_bytes_4, int_to_le_bytes_4,
         call_no_args,
 )
@@ -18,19 +18,19 @@ greet_server_spec = RpcServerSpec(
         responses = [
             RpcServerResp(
                 cmd_id = greet_server_cmd_ids.hello,
-                parse_and_call = make_deserializer(deserialize_str),
+                parse_and_call = make_server_deserializer(deserialize_str),
                 serialize_response = serialize_str,
                 client_function = lambda name: f'hello {name}',
             ),
             RpcServerResp(
                 cmd_id = greet_server_cmd_ids.goodbye,
-                parse_and_call = make_deserializer(deserialize_str),
+                parse_and_call = make_server_deserializer(deserialize_str),
                 serialize_response = serialize_str,
                 client_function = lambda name: f'goodbye {name}',
             ),
             RpcServerResp(
                 cmd_id = greet_server_cmd_ids.add_2_words,
-                parse_and_call = make_deserializer(
+                parse_and_call = make_server_deserializer(
                     parse_int_from_le_bytes_4, parse_int_from_le_bytes_4),
                 serialize_response = int_to_le_bytes_4,
                 client_function = lambda a, b: a + b
