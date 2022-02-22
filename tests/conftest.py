@@ -67,7 +67,6 @@ exclusive_access_cm = make_exclusive_access_server_cm(
                 parse_and_call = make_deserializer(
                     make_deserialize_array_fixed_size(
                         num_elements = 3,
-                        element_size = 4,
                         element_parser = parse_int_from_le_bytes_4)),
                 serialize_response = int_to_le_bytes_4,
                 client_function = lambda arr: sum(arr)
@@ -76,7 +75,6 @@ exclusive_access_cm = make_exclusive_access_server_cm(
                 cmd_id = greet_server_cmd_ids.sum_array,
                 parse_and_call = make_deserializer(
                     make_deserialize_array(
-                        element_size = 4,
                         element_parser = parse_int_from_le_bytes_4)),
                 serialize_response = int_to_le_bytes_4,
                 client_function = lambda arr: sum(arr)
@@ -85,7 +83,6 @@ exclusive_access_cm = make_exclusive_access_server_cm(
                 cmd_id = greet_server_cmd_ids.sum_array_echo_string,
                 parse_and_call = make_deserializer(
                     make_deserialize_array(
-                        element_size = 4,
                         element_parser = parse_int_from_le_bytes_4),
                     deserialize_str),
                 serialize_response = make_apply(
@@ -127,7 +124,6 @@ greet_client_spec = RpcClientSpec(
                 cmd_id = greet_client_cmd_ids.sum_fixed_array,
                 serialize_request = make_serialize_array_fixed_size(
                     num_elements = 3,
-                    element_size = 4,
                     element_serializer = int_to_le_bytes_4,
                 ),
                 parse_response = int_from_le_bytes_4,
@@ -135,7 +131,6 @@ greet_client_spec = RpcClientSpec(
             RpcClientReq(
                 cmd_id = greet_client_cmd_ids.sum_array,
                 serialize_request = make_serialize_array(
-                    element_size = 4,
                     element_serializer = int_to_le_bytes_4,
                 ),
                 parse_response = int_from_le_bytes_4,
@@ -144,7 +139,6 @@ greet_client_spec = RpcClientSpec(
                 cmd_id = greet_client_cmd_ids.sum_array_echo_string,
                 serialize_request = make_serializer(
                     make_serialize_array(
-                        element_size = 4,
                         element_serializer = int_to_le_bytes_4),
                     serialize_str
                 ),

@@ -1,7 +1,7 @@
 """Module to hold serialization functions
 """
 from functools import partial, wraps
-from itertools import repeat
+from itertools import repeat, chain
 from typing import Tuple, Callable, Any, Iterable, List
 from logging import debug
 
@@ -141,36 +141,29 @@ def make_apply(func):
     """Useful when using `make_serializer` in a server context when serializing
     the response from the invoked function.
     """
-    def starmapped(kwargs):
-        return func(*kwargs)
-    return starmapped
+    def apply(args):
+        return func(*args)
+    return apply
 
 def make_serialize_array_fixed_size(
         num_elements:int,
-        element_size:int,
         element_serializer:Callable,
 ) -> Callable:
-    expected_payload_size = num_elements*element_size
     def array_serializer_fixed_size(array:Iterable) -> bytes:
-        payload = b''.join(map(element_serializer, array))
-        len_payload = len(payload)
-        if expected_payload_size != len_payload:
-            raise ValueError(f"Serialized payload size: {len_payload} doesn't "
-                    "match expectation: {expected_payload_size}. Are you sure "
-                    "you provided {num_elements}?")
+        serialized_elements = list(map(element_serializer, array))
+
+        payload = b''.join(serialized_elements)
+        if len(serialized_elements) != num_elements:
+            raise ValueError(f"Expected {num_elements} elements in array. Got: "
+                    f"{len(serialized_elements)}")
         return payload
     return array_serializer_fixed_size
 
 def make_deserialize_array_fixed_size(
         num_elements:int,
-        element_size:int,
         element_parser:Callable,
 ) -> Callable:
-    min_required_bytes = num_elements * element_size
     def array_deserializer_fixed_size(bs:bytes) -> Tuple[Any, bytes]:
-        len_bs = len(bs)
-        if len_bs < min_required_bytes:
-            raise ValueError(f'Got {len_bs} bytes but require {len_bs} to parse fixed size array')
         parsers = repeat(element_parser, num_elements)
         *res, remaining = _deserializer_helper_and_remaining(parsers, bs)
         len_res = len(res)
@@ -180,27 +173,22 @@ def make_deserialize_array_fixed_size(
         if len_res != num_elements:
             raise ValueError(f'Expected {num_elements} elements. Only got {len_res}')
         return res, remaining
-
     return array_deserializer_fixed_size
 
-def make_serialize_array(
-        element_size:int,
-        element_serializer:Callable,
-) -> Callable:
+def make_serialize_array(element_serializer:Callable) -> Callable:
     def array_serializer(array:Iterable) -> bytes:
-        payload = b''.join(map(element_serializer, array))
+        serialized_elements = list(map(element_serializer, array))
+        num_elements = len(serialized_elements)
+        payload = b''.join(chain([int_to_le_bytes_4(num_elements)], serialized_elements))
         return serialize_bytes(payload)
     return array_serializer
 
-def make_deserialize_array(element_size:int, element_parser:Callable) -> Callable:
+def make_deserialize_array(element_parser:Callable) -> Callable:
     def deserialize_array(bs:bytes) -> Tuple[Any, bytes]:
-        array_bs, remaining_bs = deserialize_bytes(bs)
-        len_array_bs = len(array_bs)
-        num_elements, remainder = divmod(len_array_bs, element_size)
-        if remainder:
-            raise ValueError('Parsing error when deserializing array of size '
-                f'{len_array_bs}. It is not an integer multiple of {element_size}')
-        parsers = repeat(element_parser, num_elements)
+        array_def, remaining_bs = deserialize_bytes(bs)
+        len_array_bs = len(array_def)
+        array_len, array_bs = parse_int_from_le_bytes_4(array_def)
+        parsers = repeat(element_parser, array_len)
         return tuple(_deserializer_helper(parsers, array_bs)), remaining_bs
     return deserialize_array
 
@@ -210,6 +198,9 @@ def call_no_args(func:Callable, bs:bytes):
     return func()
 
 def serialize_no_response(_):
+    return b''
+
+def client_call_no_args():
     return b''
 
 def parse_no_response(bs:bytes):
