@@ -19,7 +19,6 @@ class RpcClientSpec(NamedTuple):
     requests: List[RpcClientReq]
     on_connect:Callable[[Any], None] = lambda local_data: None
     on_disconnect:Callable[[Any], bool] = lambda local_data: None
-    timeout_secs:float = 10 #this is a hint, may not be applied depending on server implementation
 
 class RpcServerSpec(NamedTuple):
     responses: List[RpcServerResp]
