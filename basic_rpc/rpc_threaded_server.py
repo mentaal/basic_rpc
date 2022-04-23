@@ -48,7 +48,10 @@ class SocketServer:
         shared_data, local_data, lock = self.shared_data_lock
         with lock:
             self.server_spec.on_client_disconnect(shared_data, local_data)
-        self.sock.shutdown(socket.SHUT_RDWR)
+        try:
+            self.sock.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
         self.sock.close()
         debug('closing connection from client complete')
 
@@ -153,33 +156,34 @@ class SocketServer:
         sock = self.sock
 
         debug('waiting for a message from client...')
-        while True:
-            try:
-                msg_type, payload = self.get_msg()
-                if msg_type == ClientMsgTypeBytes.MSG_CLIENT_INIT:
-                    self.handle_init(msg_type, payload)
-                elif msg_type == ClientMsgTypeBytes.MSG_CLIENT_RPC_REQ:
-                    if not self.session_established:
-                        raise ProtocolError('Need to initialize connection first')
-                    self.handle_cmd(payload)
-                else:
-                    unexpected_msg_error(ClientMsgTypeBytes.MSG_CLIENT_RPC_REQ, msg_type)
-            except DisconnectedError:
-                self.close()
-                break
-            except ServerShutdown as exc:
-                debug('server shutdown...')
-                if not exc._during_send:
+        try:
+            while True:
+                try:
+                    msg_type, payload = self.get_msg()
+                    if msg_type == ClientMsgTypeBytes.MSG_CLIENT_INIT:
+                        self.handle_init(msg_type, payload)
+                    elif msg_type == ClientMsgTypeBytes.MSG_CLIENT_RPC_REQ:
+                        if not self.session_established:
+                            raise ProtocolError('Need to initialize connection first')
+                        self.handle_cmd(payload)
+                    else:
+                        unexpected_msg_error(ClientMsgTypeBytes.MSG_CLIENT_RPC_REQ, msg_type)
+                except DisconnectedError:
+                    break
+                except ServerShutdown as exc:
+                    debug('server shutdown...')
+                    if not exc._during_send:
+                        self.handle_exception(exc)
+                    return
+                except ProtocolError as exc:
                     self.handle_exception(exc)
-                self.close()
-                return
-            except ProtocolError as exc:
-                self.handle_exception(exc)
-            except ServerRpcError as exc:
-                self.handle_exception(exc.__cause__, rpc_exception=True)
-            except Exception as exc:
-                self.handle_exception(exc)
-                break
+                except ServerRpcError as exc:
+                    self.handle_exception(exc.__cause__, rpc_exception=True)
+                except Exception as exc:
+                    self.handle_exception(exc)
+                    break
+        finally:
+            self.close()
 
 def safe_join(thread:threading.Thread):
     """signals don't gel with threads so don't call blocking calls directly"""
