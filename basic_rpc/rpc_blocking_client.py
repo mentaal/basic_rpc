@@ -80,12 +80,12 @@ class SocketClientBase:
         msg = serialize_client_rpc_req(cmd_id, bs)
         self.send_all(msg, deadline)
 
-    def get_msg(self, timeout_secs:float):
-        msg_size_bytes = self.recv_all(4)
+    def get_msg(self, deadline:float):
+        msg_size_bytes = self.recv_all(4, deadline)
         msg_size = deserialize_msg_size(msg_size_bytes)
         if msg_size < REQ_HDR_PREFIX_SIZE:
             raise ProtocolError(f'message of size {msg_size} less than minimum')
-        msg_bytes = self.recv_all(msg_size - 4, timeout_secs)
+        msg_bytes = self.recv_all(msg_size - 4, deadline)
         msg_type = parse_msg_header_from_server(msg_bytes)
         response_payload = msg_bytes[REQ_HDR_PREFIX_SIZE-4:]
         if msg_type == ServerMsgTypeBytes.MSG_SERVER_EXCEPTION:
