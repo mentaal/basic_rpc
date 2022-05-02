@@ -80,11 +80,20 @@ class SocketClientBase:
         msg = serialize_client_rpc_req(cmd_id, bs)
         self.send_all(msg, deadline)
 
-    def get_msg(self, deadline:float):
+    def get_msg(self, deadline:float, expected_response_size:Optional[int]=None):
+        # expected_response_size is the size less the hdr_prefix. So for example, if
+        # the user is expected to receive a serialized word of four bytes, the
+        # expected received message size would be 4
         msg_size_bytes = self.recv_all(4, deadline)
         msg_size = deserialize_msg_size(msg_size_bytes)
+        response_size = msg_size - REQ_HDR_PREFIX_SIZE
+        debug(f'got response msg of size: {msg_size}')
         if msg_size < REQ_HDR_PREFIX_SIZE:
             raise ProtocolError(f'message of size {msg_size} less than minimum')
+        elif expected_response_size is not None and expected_response_size != response_size:
+            raise ProtocolError(f'expected message size is: {expected_response_size} but received: {response_size}')
+
+        info(f"Going to recv message of size: {msg_size - 4}")
         msg_bytes = self.recv_all(msg_size - 4, deadline)
         msg_type = parse_msg_header_from_server(msg_bytes)
         response_payload = msg_bytes[REQ_HDR_PREFIX_SIZE-4:]
@@ -124,7 +133,7 @@ class SocketClientBase:
         start = now()
         while remaining:
             try:
-                recvd = sock.recv(remaining)
+                recvd = sock.recv(min(remaining, 8192))
             except socket.timeout as ex:
                 if has_timed_out(deadline):
                     raise ConnectionError('Timed out waiting for complete response from the server') from ex
@@ -133,7 +142,8 @@ class SocketClientBase:
             recvd_len = len(recvd)
             if recvd_len:
                 chunks.append(recvd)
-                remaining -= len(recvd)
+                remaining -= recvd_len
+                debug(f'received: {recvd_len}, remaining: {remaining}')
                 if remaining == 0: #done
                     return b''.join(chunks)
             else:
@@ -143,19 +153,18 @@ class SocketClientBase:
         sock = self.sock
         if not sock:
             raise ValueError('Trying to send without a socket')
-        remaining = len(bs)
-        debug(f'sending a msg of {remaining} bytes...')
-        while remaining:
+        to_send_len = len(bs)
+        total_sent = 0
+        debug(f'sending a msg of {to_send_len} bytes...')
+        while total_sent < to_send_len:
             try:
-                num_sent = sock.send(bs)
+                num_sent = sock.send(bs[total_sent:total_sent+8192])
             except socket.timeout as ex:
                 if has_timed_out(deadline):
                     raise ConnectionError('Timed out waiting to send data to server') from ex
                 else:
                     continue
-            remaining -= num_sent
-            if remaining == 0:
-                return
+            total_sent += num_sent
 
     __enter__ = connect
 
@@ -168,7 +177,7 @@ def _create_req_func(client_req:RpcClientReq) -> Callable:
         bs = client_req.serialize_request(*args, **kwargs)
         deadline = now() + _timeout_secs
         self.send_msg(cmd_id=client_req.cmd_id, bs=bs, deadline=deadline)
-        msg_type, response_payload = self.get_msg(deadline)
+        msg_type, response_payload = self.get_msg(deadline, client_req.expected_response_size)
         if msg_type != ServerMsgTypeBytes.MSG_SERVER_RPC_RESP:
             unexpected_msg_error(ServerMsgTypeBytes.MSG_SERVER_RPC_RESP, msg_type)
 

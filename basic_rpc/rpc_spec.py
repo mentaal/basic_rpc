@@ -1,13 +1,14 @@
 """Module to hold RPC spec for rpc implementation.
 """
 
-from typing import NamedTuple, Callable, Any, List, Tuple
+from typing import NamedTuple, Callable, Any, List, Tuple, Optional
 from enum import Enum
 
 class RpcClientReq(NamedTuple):
     cmd_id:Enum
     serialize_request:Callable[..., bytes]
     parse_response:Callable[[bytes], Any]
+    expected_response_size:Optional[int] = None
 
 class RpcServerResp(NamedTuple):
     cmd_id:Enum
