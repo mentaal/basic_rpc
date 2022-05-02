@@ -93,7 +93,7 @@ class SocketClientBase:
         elif expected_response_size is not None and expected_response_size != response_size:
             raise ProtocolError(f'expected message size is: {expected_response_size} but received: {response_size}')
 
-        info(f"Going to recv message of size: {msg_size - 4}")
+        debug(f"Going to recv message of size: {msg_size - 4}")
         msg_bytes = self.recv_all(msg_size - 4, deadline)
         msg_type = parse_msg_header_from_server(msg_bytes)
         response_payload = msg_bytes[REQ_HDR_PREFIX_SIZE-4:]
