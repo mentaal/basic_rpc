@@ -57,17 +57,17 @@ class SocketServer:
 
     def send_all(self, bs:bytes):
         sock, shutdown_event = self.sock, self.shutdown_event
-        remaining = len(bs)
-        debug(f'sending a msg of {remaining} bytes...')
-        while remaining:
+        to_send_len = len(bs)
+        total_sent = 0
+        debug(f'sending a msg of {total_sent} bytes...')
+        while total_sent < to_send_len:
             try:
-                num_sent = sock.send(bs)
+                num_sent = sock.send(bs[total_sent:total_sent+8192])
             except socket.timeout:
                 if shutdown_event.is_set():
                     raise ServerShutdown('server is shutting down', during_send=True)
-            remaining -= num_sent
-            if remaining == 0:
-                return
+            total_sent += num_sent
+        debug('finished sending msg')
 
     def recv_all(self, num:int) -> bytes:
         sock, shutdown_event = self.sock, self.shutdown_event
