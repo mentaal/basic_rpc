@@ -8,7 +8,6 @@ class RpcClientReq(NamedTuple):
     cmd_id:Enum
     serialize_request:Callable[..., bytes]
     parse_response:Callable[[bytes], Any]
-    expected_response_size:Optional[int] = None
 
 class RpcServerResp(NamedTuple):
     cmd_id:Enum

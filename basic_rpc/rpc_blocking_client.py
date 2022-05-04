@@ -80,18 +80,13 @@ class SocketClientBase:
         msg = serialize_client_rpc_req(cmd_id, bs)
         self.send_all(msg, deadline)
 
-    def get_msg(self, deadline:float, expected_response_size:Optional[int]=None):
-        # expected_response_size is the size less the hdr_prefix. So for example, if
-        # the user is expected to receive a serialized word of four bytes, the
-        # expected received message size would be 4
+    def get_msg(self, deadline:float):
         msg_size_bytes = self.recv_all(4, deadline)
         msg_size = deserialize_msg_size(msg_size_bytes)
         response_size = msg_size - REQ_HDR_PREFIX_SIZE
         debug(f'got response msg of size: {msg_size}')
         if msg_size < REQ_HDR_PREFIX_SIZE:
             raise ProtocolError(f'message of size {msg_size} less than minimum')
-        elif expected_response_size is not None and expected_response_size != response_size:
-            raise ProtocolError(f'expected message size is: {expected_response_size} but received: {response_size}')
 
         debug(f"Going to recv message of size: {msg_size - 4}")
         msg_bytes = self.recv_all(msg_size - 4, deadline)
@@ -177,7 +172,7 @@ def _create_req_func(client_req:RpcClientReq) -> Callable:
         bs = client_req.serialize_request(*args, **kwargs)
         deadline = now() + _timeout_secs
         self.send_msg(cmd_id=client_req.cmd_id, bs=bs, deadline=deadline)
-        msg_type, response_payload = self.get_msg(deadline, client_req.expected_response_size)
+        msg_type, response_payload = self.get_msg(deadline)
         if msg_type != ServerMsgTypeBytes.MSG_SERVER_RPC_RESP:
             unexpected_msg_error(ServerMsgTypeBytes.MSG_SERVER_RPC_RESP, msg_type)
 
