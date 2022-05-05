@@ -116,30 +116,46 @@ def _deserializer_helper_and_remaining(parsers:Iterable[Callable], bs:bytes) -> 
         yield result
     yield bs # remaining bytes - needs to be accounted for in calling code
 
+def make_deserializer(*args, _and_remaining=False) -> Callable:
+    if _and_remaining:
+        def deserializer(bs:bytes):
+            *results, remaining_bs = _deserializer_helper_and_remaining(args, bs)
+            return results, remaining_bs
+    else:
+        def deserializer(bs:bytes):
+            return _deserializer_helper(args, bs)
+    return deserializer
+
+
 def make_server_deserializer(*args) -> Callable:
-    def deserializer(bs:bytes):
-        return _deserializer_helper(args, bs)
+    deserializer = make_deserializer(*args)
     def deserialize_and_call(func:Callable, bs:bytes):
         return func(*deserializer(bs))
     return deserialize_and_call
 
 def make_client_deserializer(*args) -> Callable:
-    def deserializer(bs:bytes):
-        return _deserializer_helper(args, bs)
-    return deserializer
+    return make_deserializer(*args)
 
 def make_deserializer_to_tuple(*args) -> Callable:
     def deserialize(bs:bytes):
         return tuple(_deserializer_helper(args, bs))
     return deserialize
 
-def make_serializer(*serializer_funcs) -> Callable:
+def make_serializer(*serializer_funcs, _splat_args:bool=True) -> Callable:
     len_serializer_funcs = len(serializer_funcs)
-    def serializer(*args):
-        len_args = len(args)
-        if len_serializer_funcs != len_args:
-            raise ValueError(f"Number of supplied args: {len_args} doesn't match expectation: {len_serializer_funcs}")
-        return b''.join((f(a) for f,a in zip(serializer_funcs, args)))
+    if _splat_args:
+        def serializer(*args):
+            len_args = len(args)
+            if len_serializer_funcs != len_args:
+                raise ValueError(f"Number of supplied args: {len_args} doesn't match expectation: {len_serializer_funcs}")
+            return b''.join((f(a) for f,a in zip(serializer_funcs, args)))
+    else:
+        def serializer(args):
+            len_args = len(args)
+            if len_serializer_funcs != len_args:
+                raise ValueError(f"Number of supplied args: {len_args} doesn't match expectation: {len_serializer_funcs}")
+            return b''.join((f(a) for f,a in zip(serializer_funcs, args)))
+
     return serializer
 
 def make_apply(func):
