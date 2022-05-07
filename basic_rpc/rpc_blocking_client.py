@@ -17,7 +17,7 @@ from .rpc_low_level import (ServerMsgTypeBytes,
     parse_msg_header_from_server, deserialize_msg_size,
 )
 
-CONNECT_TIMEOUT = 5
+CONNECT_TIMEOUT = 7
 
 def has_timed_out(deadline:float) -> bool:
     current = now()
@@ -30,7 +30,7 @@ class SocketClientBase:
             self,
             host_name:str,
             port:int,
-            timeout_secs:float = 10,
+            timeout_secs:float = 20,
             retry_interval_secs:float = 4.5,
     ):
         if timeout_secs < CONNECT_TIMEOUT:
