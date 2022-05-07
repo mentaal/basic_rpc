@@ -4,7 +4,7 @@ import threading
 import socket
 from enum import Enum
 from typing import Optional, Callable
-from logging import debug, error as log_error
+from logging import debug, error as log_error, info
 from functools import wraps
 from time import sleep, time as now
 
@@ -49,7 +49,7 @@ class SocketClientBase:
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, True)
         sock.settimeout(CONNECT_TIMEOUT)
-        debug(f'connecting to host: {self.host}')
+        info(f'connecting to host: {self.host}')
         start = now()
         deadline = start + self.timeout_secs
         while True:
