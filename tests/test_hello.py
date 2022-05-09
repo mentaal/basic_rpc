@@ -5,6 +5,8 @@ from basic_rpc.rpc_low_level import ProtocolError
 from random import randint
 from time import sleep
 
+TIMEOUT_SECS = 9
+
 @pytest.fixture(scope='module')
 def client(hello_client_module_scope, hello_server_cm):
     with hello_server_cm:
@@ -31,7 +33,7 @@ def test_server_rpc_exception(client):
         client.add_2_words(0xFFFFFFFF, 0x1000) # should cause overflow error
 
 def test_concurrent_users_only_one(client, hello_client_gen):
-    hello_client = hello_client_gen(timeout_secs=6, retry_interval_secs=2)
+    hello_client = hello_client_gen(timeout_secs=TIMEOUT_SECS, retry_interval_secs=2)
     with pytest.raises(ConnectionError, match=r'Timed out waiting for connection'):
         # This should fail because the server has already been connected to by `client`
         # hello_client here represents a second user attempting to use the
@@ -46,7 +48,7 @@ def connect_and_say_hi(client):
         client.hello('Robert')
 
 def test_waiting_in_line(client, hello_client_gen):
-    hello_client = hello_client_gen(timeout_secs=6, retry_interval_secs=2)
+    hello_client = hello_client_gen(timeout_secs=TIMEOUT_SECS, retry_interval_secs=2)
     client_thread = threading.Thread(target=connect_and_say_hi, args=(hello_client,))
     client_thread.start()
     #hello_client should be blocked now until we disconnect client

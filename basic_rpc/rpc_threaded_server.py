@@ -319,11 +319,25 @@ def single_client_only_connect(shared_data:dict, local_data:dict) -> bool:
     if locally_connected_already:
         raise ValueError("User attempting to connect but already connected. This shouldn't happen")
 
+    waiting_threads = shared_data['waiting_threads']
+    my_tid = threading.get_ident()
     # TODO consider adding more logic here to implement a fair queue for users waiting on service
-    user_can_connect = not shared_data['user_connected']
+    user_in_wait_queue = waiting_threads and my_tid in waiting_threads
+    user_next_in_line = waiting_threads and my_tid == waiting_threads[0]
+    user_can_connect = (not shared_data['user_connected']) and user_next_in_line
+
     if user_can_connect:
         shared_data['user_connected'] = True
         local_data['user_connected'] = True
+        if my_tid in waiting_threads:
+            debug(f'thread: {my_tid} can now become active so popping from waiting list')
+            waiting_threads.remove(my_tid)
+    else:
+        if not user_in_wait_queue:
+            waiting_threads.append(my_tid)
+            debug(f'thread: {my_tid} added to wait queue. Position: {waiting_threads.index(my_tid)}...')
+        else:
+            debug(f'thread: {my_tid} waiting in line... position: {waiting_threads.index(my_tid)}')
     return user_can_connect
 
 def single_client_only_disconnect(shared_data:dict, local_data:dict) -> bool:
@@ -331,24 +345,30 @@ def single_client_only_disconnect(shared_data:dict, local_data:dict) -> bool:
     connected_shared = shared_data['user_connected']
     owns_session = connected_local and connected_shared
     bad_state = connected_local and not connected_shared
+    my_tid = threading.get_ident()
+    waiting_threads = shared_data['waiting_threads']
     if bad_state:
         raise ValueError("Bad state: User reports as being connected but shared session data doesn't agree")
 
     if owns_session:
         shared_data['user_connected'] = False
+    my_tid = threading.get_ident()
+    if my_tid in waiting_threads:
+        debug(f'thread: {my_tid} never got to connect. popping from waiting list')
+        waiting_threads.remove(my_tid)
+
+    debug(f'{my_tid} disconnected. Wait queue length: {len(waiting_threads)}')
 
     local_data['user_connected'] = False
 
-gen_exclusive_access_data = lambda: {'user_connected': False}
+gen_exclusive_access_shared_data = lambda: {'user_connected': False, 'waiting_threads': []}
+gen_exclusive_access_local_data = lambda: {'user_connected': False}
 
 def make_exclusive_access_server(responses:Tuple[RpcServerResp]) -> Callable:
     server_spec = RpcServerSpec(
             responses = responses,
-            # return an instance of shared data as well as the factory function
-            # which produced it because it just so happens that the shared data
-            # shape matches the local data in this instance
-            on_server_init = lambda: (gen_exclusive_access_data(),
-                                      gen_exclusive_access_data),
+            on_server_init = lambda: (gen_exclusive_access_shared_data(),
+                                      gen_exclusive_access_local_data),
             on_client_connect = single_client_only_connect,
             on_client_disconnect = single_client_only_disconnect,
     )
