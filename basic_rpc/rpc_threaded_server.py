@@ -63,10 +63,13 @@ class SocketServer:
         while total_sent < to_send_len:
             try:
                 num_sent = sock.send(bs[total_sent:total_sent+8192])
+                if num_sent == 0: #client has disconnected
+                    debug('client disconnected...')
+                    raise DisconnectedError()
+                total_sent += num_sent
             except socket.timeout:
                 if shutdown_event.is_set():
                     raise ServerShutdown('server is shutting down', during_send=True)
-            total_sent += num_sent
         debug('finished sending msg')
 
     def recv_all(self, num:int) -> bytes:
@@ -323,13 +326,17 @@ def single_client_only_connect(shared_data:dict, local_data:dict) -> bool:
     my_tid = threading.get_ident()
     # TODO consider adding more logic here to implement a fair queue for users waiting on service
     user_in_wait_queue = waiting_threads and my_tid in waiting_threads
-    user_next_in_line = waiting_threads and my_tid == waiting_threads[0]
-    user_can_connect = (not shared_data['user_connected']) and user_next_in_line
+    user_next_in_line = bool(waiting_threads) and my_tid == waiting_threads[0]
+    noone_connected = not shared_data['user_connected']
+    empty_queue = not waiting_threads
+    user_can_connect = noone_connected and (user_next_in_line or empty_queue)
+    assert type(user_can_connect) == bool
 
     if user_can_connect:
         shared_data['user_connected'] = True
         local_data['user_connected'] = True
-        if my_tid in waiting_threads:
+        debug(f'thread:{my_tid} connected')
+        if user_next_in_line:
             debug(f'thread: {my_tid} can now become active so popping from waiting list')
             waiting_threads.remove(my_tid)
     else:
