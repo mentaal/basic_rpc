@@ -59,7 +59,7 @@ class SocketServer:
         sock, shutdown_event = self.sock, self.shutdown_event
         to_send_len = len(bs)
         total_sent = 0
-        debug(f'sending a msg of {total_sent} bytes...')
+        debug(f'sending a msg of {to_send_len} bytes...')
         while total_sent < to_send_len:
             try:
                 num_sent = sock.send(bs[total_sent:total_sent+8192])
