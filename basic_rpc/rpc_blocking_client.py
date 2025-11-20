@@ -101,8 +101,9 @@ class SocketClientBase:
 
         debug(f"Going to recv message of size: {msg_size - 4}")
         msg_bytes = self.recv_all(msg_size - 4, deadline)
-        msg_type = parse_msg_header_from_server(msg_bytes)
-        response_payload = msg_bytes[REQ_HDR_PREFIX_SIZE - 4 :]
+        msg_mv = memoryview(msg_bytes)
+        msg_type = parse_msg_header_from_server(msg_mv)
+        response_payload = msg_mv[REQ_HDR_PREFIX_SIZE - 4 :]
         if msg_type == ServerMsgTypeBytes.MSG_SERVER_EXCEPTION:
             deserialize_exception_raise(response_payload)
         return msg_type, response_payload

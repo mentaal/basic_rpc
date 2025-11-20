@@ -2,11 +2,12 @@
 
 from functools import partial, wraps
 from itertools import repeat, chain
-from typing import Tuple, Callable, Any, Iterable, List, TypeVar
+from typing import Tuple, Callable, Any, Iterable, TypeVar
 
+Buffer = memoryview | bytes
 T = TypeVar("T")
-DeserializeResult = Tuple[T, bytes]
-Deserializer = Callable[[bytes], DeserializeResult]
+DeserializeResult = Tuple[T, Buffer]
+Deserializer = Callable[[Buffer], DeserializeResult]
 
 
 def int_to_le_bytes(num_bytes: int, num: int) -> bytes:
@@ -19,7 +20,7 @@ int_to_le_bytes_2 = partial(int_to_le_bytes, 2)
 int_to_le_bytes_1 = partial(int_to_le_bytes, 1)
 
 
-def int_from_le_bytes(num_bytes: int, bs: bytes) -> int:
+def int_from_le_bytes(num_bytes: int, bs: Buffer) -> int:
     to_parse = bs[:num_bytes]
     len_to_parse = len(to_parse)
     if len_to_parse != num_bytes:
@@ -35,10 +36,12 @@ int_from_le_bytes_2 = partial(int_from_le_bytes, 2)
 int_from_le_bytes_1 = partial(int_from_le_bytes, 1)
 
 
-def parse_int_from_le_bytes(num_bytes: int, bs: bytes) -> DeserializeResult[int]:
+def parse_int_from_le_bytes(num_bytes: int, bs: Buffer) -> DeserializeResult[int]:
     bs_len = len(bs)
     if bs_len < num_bytes:
-        raise ValueError("Insufficient number of bytes to parse")
+        raise ValueError(
+            f"Insufficient number of bytes to parse. Expected {num_bytes}, got: {bs_len}"
+        )
     return int_from_le_bytes(num_bytes, bs), bs[num_bytes:]
 
 
@@ -56,11 +59,11 @@ def serialize_cmd_msg_size(msg: bytes) -> bytes:
     return int_to_le_bytes_4(len(msg))
 
 
-def deserialize_cmd_msg_size(bs: bytes) -> DeserializeResult[int]:
+def deserialize_cmd_msg_size(bs: Buffer) -> DeserializeResult[int]:
     return (int_from_le_bytes_4(bs), bs[4:])
 
 
-def deserialize_bool(bs: bytes) -> DeserializeResult[bool]:
+def deserialize_bool(bs: Buffer) -> DeserializeResult[bool]:
     b, remaining = bs[0], bs[1:]
     return bool(b), remaining
 
@@ -112,29 +115,35 @@ def serialize_bytes(bs: bytes) -> bytes:
     )
 
 
-def deserialize_str(bs: bytes) -> DeserializeResult[str]:
+def deserialize_str(bs: Buffer) -> DeserializeResult[str]:
     """Returns the deserialized string and the remaining bytes after the string"""
     size, str_bytes = deserialize_cmd_msg_size(bs)
-    if len(str_bytes) < size:
-        raise ValueError("Cannot deserialize string, missing bytes")
-    return str_bytes[:size].decode(), str_bytes[size:]
+    str_bytes_len = len(str_bytes)
+    if str_bytes_len < size:
+        raise ValueError(
+            f"Cannot deserialize string, missing bytes. Expected {size}, got {str_bytes_len}."
+        )
+    return str_bytes[:size].tobytes().decode(), str_bytes[size:]
 
 
 deserialize_str_only = make_deserialize_only(deserialize_str, "string")
 
 
-def deserialize_bytes(bs: bytes) -> DeserializeResult[bytes]:
+def deserialize_bytes(bs: Buffer) -> DeserializeResult[bytes]:
     """Returns the deserialized msg bytes and the remaining bytes after the msg"""
     size, payload_bytes = deserialize_cmd_msg_size(bs)
-    if len(payload_bytes) < size:
-        raise ValueError("Cannot deserialize msg, missing bytes")
+    payload_bytes_len = len(payload_bytes)
+    if payload_bytes_len < size:
+        raise ValueError(
+            f"Cannot deserialize msg, missing bytes. Expected {size}, got {payload_bytes_len}."
+        )
     return payload_bytes[:size], payload_bytes[size:]
 
 
 deserialize_bytes_only = make_deserialize_only(deserialize_bytes, "bytes")
 
 
-def _deserializer_helper(parsers: Iterable[Callable], bs: bytes) -> Iterable[Any]:
+def _deserializer_helper(parsers: Iterable[Callable], bs: Buffer) -> Iterable[Any]:
     for p in parsers:
         result, bs = p(bs)
         yield result
@@ -143,26 +152,35 @@ def _deserializer_helper(parsers: Iterable[Callable], bs: bytes) -> Iterable[Any
 
 
 def _deserializer_helper_and_remaining(
-    parsers: Iterable[Callable], bs: bytes
+    parsers: Iterable[Callable], bs: Buffer
 ) -> Iterable[Any]:
     for p in parsers:
         result, bs = p(bs)
         yield result
-    yield bs  # remaining bytes - needs to be accounted for in calling code
+    yield bs  # remaining Buffer - needs to be accounted for in calling code
+
+
+def to_memory_view(bs: Buffer) -> memoryview:
+    if isinstance(bs, memoryview):
+        return bs
+    else:
+        return memoryview(bs)
 
 
 def make_deserializer(*args, _and_remaining=False) -> Deserializer:
     if _and_remaining:
 
-        def deserializer_and_remaining(bs: bytes) -> DeserializeResult:
-            *results, remaining_bs = _deserializer_helper_and_remaining(args, bs)
+        def deserializer_and_remaining(bs: Buffer) -> DeserializeResult:
+            *results, remaining_bs = _deserializer_helper_and_remaining(
+                args, to_memory_view(bs)
+            )
             return results, remaining_bs
 
         deserializer = deserializer_and_remaining
     else:
 
-        def deserializer_no_remaining(bs: bytes) -> DeserializeResult:
-            return tuple(_deserializer_helper(args, bs))
+        def deserializer_no_remaining(bs: Buffer) -> DeserializeResult:
+            return tuple(_deserializer_helper(args, to_memory_view(bs)))
 
         deserializer = deserializer_no_remaining
     return deserializer
@@ -171,7 +189,7 @@ def make_deserializer(*args, _and_remaining=False) -> Deserializer:
 def make_server_deserializer(*args) -> Callable:
     deserializer = make_deserializer(*args)
 
-    def deserialize_and_call(func: Callable, bs: bytes):
+    def deserialize_and_call(func: Callable, bs: Buffer):
         return func(*deserializer(bs))
 
     return deserialize_and_call
@@ -182,7 +200,7 @@ def make_client_deserializer(*args) -> Callable:
 
 
 def make_deserializer_to_tuple(*args) -> Callable:
-    def deserialize(bs: bytes):
+    def deserialize(bs: Buffer):
         return tuple(_deserializer_helper(args, bs))
 
     return deserialize
@@ -244,7 +262,7 @@ def make_deserialize_array_fixed_size(
     num_elements: int,
     element_parser: Callable,
 ) -> Callable:
-    def array_deserializer_fixed_size(bs: bytes) -> Tuple[Any, bytes]:
+    def array_deserializer_fixed_size(bs: Buffer) -> Tuple[Any, Buffer]:
         parsers = repeat(element_parser, num_elements)
         *res, remaining = _deserializer_helper_and_remaining(parsers, bs)
         len_res = len(res)
@@ -271,16 +289,17 @@ def make_serialize_array(element_serializer: Callable) -> Callable:
 
 
 def make_deserialize_array(element_parser: Callable) -> Callable:
-    def deserialize_array(bs: bytes) -> Tuple[Any, bytes]:
+    def deserialize_array(bs: Buffer) -> Tuple[Any, Buffer]:
         array_def, remaining_bs = deserialize_bytes(bs)
         array_len, array_bs = parse_int_from_le_bytes_4(array_def)
         parsers = repeat(element_parser, array_len)
-        return tuple(_deserializer_helper(parsers, array_bs)), remaining_bs
+        deserialized = tuple(_deserializer_helper(parsers, array_bs))
+        return deserialized, remaining_bs
 
     return deserialize_array
 
 
-def call_no_args(func: Callable, bs: bytes):
+def call_no_args(func: Callable, bs: Buffer):
     if len(bs):
         raise ValueError("Expected no arguments in function invocation")
     return func()
@@ -294,7 +313,7 @@ def client_call_no_args():
     return b""
 
 
-def parse_no_response(bs: bytes):
+def parse_no_response(bs: Buffer):
     len_bs = len(bs)
     if len_bs:
         raise ValueError(f"Unexpected response from server. Got {len_bs}")

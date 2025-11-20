@@ -42,6 +42,7 @@ from .rpc_serialization_functions import (
     serialize_str,
     deserialize_str,
     serialize_bool,
+    Buffer,
 )
 
 is_exception = lambda obj: isinstance(obj, type) and issubclass(obj, BaseException)
@@ -140,7 +141,7 @@ ServerMsgType, ServerMsgTypeBytes = gen_enum_and_bytes(
 )
 
 
-def parse_msg_header(enum_type: "enum_meta", msg: bytes):
+def parse_msg_header(enum_type: "enum_meta", msg: Buffer):
     msg_type = enum_from_value(enum_type, msg[:1])
     if not msg_type:
         raise ProtocolError(f"Unexpected msg_type: {msg_type}")
