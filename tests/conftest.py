@@ -8,8 +8,8 @@ from enum import Enum
 import pytest
 from functools import partial
 
-from basic_rpc.rpc_spec import RpcServerResp, RpcClientSpec, RpcClientReq
-from basic_rpc.rpc_serialization_functions import (
+from basic_socket_rpc.rpc_spec import RpcServerResp, RpcClientSpec, RpcClientReq
+from basic_socket_rpc.rpc_serialization_functions import (
     serialize_str,
     deserialize_str,
     deserialize_str_only,
@@ -27,8 +27,8 @@ from basic_rpc.rpc_serialization_functions import (
     call_no_args,
     parse_no_response,
 )
-from basic_rpc.rpc_threaded_server import make_exclusive_access_server_cm
-from basic_rpc.rpc_blocking_client import gen_client_class
+from basic_socket_rpc.rpc_threaded_server import make_exclusive_access_server_cm
+from basic_socket_rpc.rpc_blocking_client import gen_client_class
 
 
 HOST_NAME = "127.0.0.1"

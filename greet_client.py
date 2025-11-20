@@ -1,7 +1,7 @@
 from enum import Enum
 import argparse
-from basic_rpc.rpc_spec import RpcClientSpec, RpcClientReq
-from basic_rpc.rpc_serialization_functions import (
+from basic_socket_rpc.rpc_spec import RpcClientSpec, RpcClientReq
+from basic_socket_rpc.rpc_serialization_functions import (
     serialize_str,
     deserialize_str_only,
     make_serializer,
@@ -9,7 +9,7 @@ from basic_rpc.rpc_serialization_functions import (
     int_from_le_bytes_4,
     parse_no_response,
 )
-from basic_rpc.rpc_blocking_client import gen_client_class
+from basic_socket_rpc.rpc_blocking_client import gen_client_class
 
 
 class greet_client_cmd_ids(Enum):

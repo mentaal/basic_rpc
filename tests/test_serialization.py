@@ -1,6 +1,6 @@
 import random
 from typing import Tuple, Any, List
-from basic_rpc.rpc_serialization_functions import (
+from basic_socket_rpc.rpc_serialization_functions import (
     int_to_le_bytes_4,
     int_to_le_bytes_2,
     make_serialize_array_fixed_size,

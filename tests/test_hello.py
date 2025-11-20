@@ -1,7 +1,7 @@
 from time import sleep
 import threading
 import pytest
-from basic_rpc.rpc_low_level import ProtocolError
+from basic_socket_rpc.rpc_low_level import ProtocolError
 from random import randint
 from time import sleep
 

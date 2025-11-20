@@ -1,5 +1,5 @@
 [project]
-name = "basic-rpc"
+name = "basic-socket-rpc"
 version = "0.1.0"
 description = "Basic binary socket based rpc for Python"
 readme = "README.md"
