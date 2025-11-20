@@ -1,18 +1,19 @@
 import random
-from typing import Tuple, Any, List
+from typing import Any, List, Tuple
+
 from basic_socket_rpc.rpc_serialization_functions import (
-    int_to_le_bytes_4,
+    deserialize_bytes,
     int_to_le_bytes_2,
-    make_serialize_array_fixed_size,
-    make_serialize_array,
-    parse_int_from_le_bytes_4,
-    parse_int_from_le_bytes_2,
+    int_to_le_bytes_4,
     make_deserialize_array,
     make_deserialize_array_fixed_size,
-    serialize_bytes,
-    make_serializer,
     make_deserializer,
-    deserialize_bytes,
+    make_serialize_array,
+    make_serialize_array_fixed_size,
+    make_serializer,
+    parse_int_from_le_bytes_2,
+    parse_int_from_le_bytes_4,
+    serialize_bytes,
 )
 
 

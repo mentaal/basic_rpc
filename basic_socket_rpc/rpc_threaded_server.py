@@ -5,33 +5,33 @@ The server is synchronous and intended to be used with threads
 See rpc_low_level.py for more discussion on the protocol
 """
 
-import threading
 import socket
-import signal
-from typing import Tuple, Any, Callable
-from logging import debug, error as log_error
-from time import sleep
+import threading
 from contextlib import contextmanager
-from functools import wraps, partial
+from functools import partial
+from logging import debug
+from logging import error as log_error
+from time import sleep
+from typing import Any, Callable, Tuple
 
-from .rpc_spec import RpcServerSpec, RpcServerResp
 from .rpc_low_level import (
     ClientMsgTypeBytes,
-    serialize_exception,
-    REQ_HDR_PREFIX_SIZE,
-    MAJOR_VERSION,
-    deserialize_version,
-    serialize_server_init_resp,
     deserialize_cmd_id,
-    serialize_server_rpc_response,
-    ProtocolError,
-    DisconnectedError,
-    ServerRpcError,
-    unexpected_msg_error,
-    ServerShutdown,
-    parse_msg_header_from_client,
     deserialize_msg_size,
+    deserialize_version,
+    DisconnectedError,
+    MAJOR_VERSION,
+    parse_msg_header_from_client,
+    ProtocolError,
+    REQ_HDR_PREFIX_SIZE,
+    serialize_exception,
+    serialize_server_init_resp,
+    serialize_server_rpc_response,
+    ServerRpcError,
+    ServerShutdown,
+    unexpected_msg_error,
 )
+from .rpc_spec import RpcServerResp, RpcServerSpec
 
 
 def log_print(msg: str):
@@ -133,9 +133,7 @@ class SocketServer:
             else:
                 shared_data, local_data, lock = self.shared_data_lock
                 with lock:
-                    session_established = self.server_spec.on_client_connect(
-                        shared_data, local_data
-                    )
+                    session_established = self.server_spec.on_client_connect(shared_data, local_data)
                 self.session_established = session_established
                 debug(f"session established: {session_established}")
                 bs = serialize_server_init_resp(session_established)
@@ -185,9 +183,7 @@ class SocketServer:
                             raise ProtocolError("Need to initialize connection first")
                         self.handle_cmd(payload)
                     else:
-                        unexpected_msg_error(
-                            ClientMsgTypeBytes.MSG_CLIENT_RPC_REQ, msg_type
-                        )
+                        unexpected_msg_error(ClientMsgTypeBytes.MSG_CLIENT_RPC_REQ, msg_type)
                 except DisconnectedError:
                     break
                 except ServerShutdown as exc:
@@ -345,9 +341,7 @@ def single_client_only_connect(shared_data: dict, local_data: dict) -> bool:
     """
     locally_connected_already = local_data["user_connected"]
     if locally_connected_already:
-        raise ValueError(
-            "User attempting to connect but already connected. This shouldn't happen"
-        )
+        raise ValueError("User attempting to connect but already connected. This shouldn't happen")
 
     waiting_threads = shared_data["waiting_threads"]
     my_tid = threading.get_ident()
@@ -364,20 +358,14 @@ def single_client_only_connect(shared_data: dict, local_data: dict) -> bool:
         local_data["user_connected"] = True
         debug(f"thread:{my_tid} connected")
         if user_next_in_line:
-            debug(
-                f"thread: {my_tid} can now become active so popping from waiting list"
-            )
+            debug(f"thread: {my_tid} can now become active so popping from waiting list")
             waiting_threads.remove(my_tid)
     else:
         if not user_in_wait_queue:
             waiting_threads.append(my_tid)
-            debug(
-                f"thread: {my_tid} added to wait queue. Position: {waiting_threads.index(my_tid)}..."
-            )
+            debug(f"thread: {my_tid} added to wait queue. Position: {waiting_threads.index(my_tid)}...")
         else:
-            debug(
-                f"thread: {my_tid} waiting in line... position: {waiting_threads.index(my_tid)}"
-            )
+            debug(f"thread: {my_tid} waiting in line... position: {waiting_threads.index(my_tid)}")
     return user_can_connect
 
 
@@ -389,9 +377,7 @@ def single_client_only_disconnect(shared_data: dict, local_data: dict) -> bool:
     my_tid = threading.get_ident()
     waiting_threads = shared_data["waiting_threads"]
     if bad_state:
-        raise ValueError(
-            "Bad state: User reports as being connected but shared session data doesn't agree"
-        )
+        raise ValueError("Bad state: User reports as being connected but shared session data doesn't agree")
 
     if owns_session:
         shared_data["user_connected"] = False
@@ -425,6 +411,6 @@ def make_exclusive_access_server(responses: Tuple[RpcServerResp]) -> Callable:
     return make_serve(server_spec)
 
 
-def make_exclusive_access_server_cm(*responses: Tuple[RpcServerResp]) -> Callable:
+def make_exclusive_access_server_cm(*responses: RpcServerResp) -> Callable:
     server = make_exclusive_access_server(responses)
     return make_serve_cm(server)

@@ -1,15 +1,17 @@
-from enum import Enum
 import argparse
-from basic_socket_rpc.rpc_spec import RpcClientSpec, RpcClientReq
-from basic_socket_rpc.rpc_serialization_functions import (
-    serialize_str,
-    deserialize_str_only,
-    make_serializer,
-    int_to_le_bytes_4,
-    int_from_le_bytes_4,
-    parse_no_response,
-)
+from enum import Enum
+from time import sleep
+
 from basic_socket_rpc.rpc_blocking_client import gen_client_class
+from basic_socket_rpc.rpc_serialization_functions import (
+    deserialize_str_only,
+    int_from_le_bytes_4,
+    int_to_le_bytes_4,
+    make_serializer,
+    parse_no_response,
+    serialize_str,
+)
+from basic_socket_rpc.rpc_spec import RpcClientReq, RpcClientSpec
 
 
 class greet_client_cmd_ids(Enum):
@@ -74,7 +76,11 @@ if __name__ == "__main__":
     with rpc_client:
         resp = rpc_client.hello("Robert")
         print(f"got {resp} from server")
+        print("Sleeping for 2 seconds...")
+        sleep(2)
         resp = rpc_client.goodbye("Robert")
+        print("Sleeping for 2 seconds...")
+        sleep(2)
         print(f"got {resp} from server")
         assert 3050 == rpc_client.add_2_words(1000, 2050)
         rpc_client.func_no_args()

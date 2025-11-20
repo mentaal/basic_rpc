@@ -1,28 +1,32 @@
 """Basic socket client to be used for RPC"""
 
-import threading
 import socket
+import threading
 from enum import Enum
-from typing import Optional, Callable
-from logging import debug, error as log_error, info
 from functools import wraps
-from time import sleep, time as now
+from logging import debug
+from logging import error as log_error
+from logging import info
+from time import sleep
+from time import time as now
+from typing import Callable, Optional
 
-from .rpc_spec import RpcClientSpec, RpcClientReq
-from .rpc_serialization_functions import deserialize_bool_only
 from .rpc_low_level import (
-    ServerMsgTypeBytes,
     deserialize_exception_raise,
-    REQ_HDR_PREFIX_SIZE,
-    VERSION_BYTES,
-    serialize_client_rpc_req,
-    serialize_client_init,
-    ProtocolError,
-    DisconnectedError,
-    unexpected_msg_error,
-    parse_msg_header_from_server,
     deserialize_msg_size,
+    DisconnectedError,
+    parse_msg_header_from_server,
+    ProtocolError,
+    REQ_HDR_PREFIX_SIZE,
+    serialize_client_init,
+    serialize_client_rpc_req,
+    ServerMsgTypeBytes,
+    unexpected_msg_error,
+    VERSION_BYTES,
 )
+from .rpc_serialization_functions import deserialize_bool_only
+from .rpc_spec import RpcClientReq, RpcClientSpec
+
 
 CONNECT_TIMEOUT = 7
 
@@ -43,9 +47,7 @@ class SocketClientBase:
         retry_interval_secs: float = 4.5,
     ):
         if timeout_secs < CONNECT_TIMEOUT:
-            raise ValueError(
-                "Connect on sockets don't like timeouts too short. Provide one larger than 5 secs"
-            )
+            raise ValueError("Connect on sockets don't like timeouts too short. Provide one larger than 5 secs")
         self.sock = None
         self.host = host_name, port
         self.local_data = {}
@@ -145,9 +147,7 @@ class SocketClientBase:
                 recvd = sock.recv(min(remaining, 8192))
             except socket.timeout as ex:
                 if has_timed_out(deadline):
-                    raise ConnectionError(
-                        "Timed out waiting for complete response from the server"
-                    ) from ex
+                    raise ConnectionError("Timed out waiting for complete response from the server") from ex
                 else:
                     continue
             recvd_len = len(recvd)
@@ -172,9 +172,7 @@ class SocketClientBase:
                 num_sent = sock.send(bs[total_sent : total_sent + 8192])
             except socket.timeout as ex:
                 if has_timed_out(deadline):
-                    raise ConnectionError(
-                        "Timed out waiting to send data to server"
-                    ) from ex
+                    raise ConnectionError("Timed out waiting to send data to server") from ex
                 else:
                     continue
             total_sent += num_sent
@@ -201,9 +199,7 @@ def _create_req_func(client_req: RpcClientReq) -> Callable:
 
 
 def gen_client_class(client_spec: RpcClientSpec):
-    class_dict = {
-        req.cmd_id.name: _create_req_func(req) for req in client_spec.requests
-    }
+    class_dict = {req.cmd_id.name: _create_req_func(req) for req in client_spec.requests}
     class_dict["client_spec"] = client_spec
     return type(
         "RpcClient",

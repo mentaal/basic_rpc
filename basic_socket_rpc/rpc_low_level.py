@@ -32,20 +32,25 @@ Server response protocol:
 import builtins
 from enum import Enum
 from functools import partial
-from typing import Callable, Iterable, Tuple, Union, List, NamedTuple, Any, Optional
+from typing import Any, Callable, Iterable, List, NamedTuple, Optional, Tuple, Union
+
 from .rpc_serialization_functions import (
-    int_to_le_bytes_4,
-    int_to_le_bytes_2,
-    int_to_le_bytes_1,
-    int_from_le_bytes_4,
-    int_from_le_bytes_2,
-    serialize_str,
-    deserialize_str,
-    serialize_bool,
     Buffer,
+    deserialize_str,
+    int_from_le_bytes_2,
+    int_from_le_bytes_4,
+    int_to_le_bytes_1,
+    int_to_le_bytes_2,
+    int_to_le_bytes_4,
+    serialize_bool,
+    serialize_str,
 )
 
-is_exception = lambda obj: isinstance(obj, type) and issubclass(obj, BaseException)
+
+def is_exception(obj: Any) -> bool:
+    return isinstance(obj, type) and issubclass(obj, BaseException)
+
+
 built_in_exceptions = {k: v for k, v in builtins.__dict__.items() if is_exception(v)}
 
 
@@ -58,17 +63,23 @@ def enum_from_value(enum_class: "enum.EnumMeta", value: Any) -> Optional[Enum]:
 
 serialize_msg_size = int_to_le_bytes_4
 deserialize_msg_size = int_from_le_bytes_4
-serialize_msg_type = lambda en: int_to_le_bytes_1(en.value)
-serialize_cmd_enum = lambda en: int_to_le_bytes_2(en.value)
+
+
+def serialize_msg_type(en) -> bytes:
+    return int_to_le_bytes_1(en.value)
+
+
+def serialize_cmd_enum(en) -> bytes:
+    return int_to_le_bytes_2(en.value)
+
+
 deserialize_cmd_id = int_from_le_bytes_2
 
 
-def deserialize_version(bs: bytes) -> Tuple[int]:
+def deserialize_version(bs: bytes) -> Tuple[int, ...]:
     if len(bs) >= 3:
         return tuple(bs[:3])
-    raise ValueError(
-        f"Cannot deserialize version, insufficient bytes: {len(bs)}. Expected 3"
-    )
+    raise ValueError(f"Cannot deserialize version, insufficient bytes: {len(bs)}. Expected 3")
 
 
 MAJOR_VERSION, MINOR_VERSION, PATCH_VERSION = 0, 0, 1
@@ -113,9 +124,7 @@ def unexpected_msg_error(expected: Enum, got: Enum):
 
 def gen_enum_and_bytes(enum_name: str, enumerations: EnumSeq) -> Tuple[Enum]:
     enum_cls = Enum(enum_name, enumerations)
-    enum_cls_bytes = Enum(
-        f"{enum_name}Bytes", list(map(_enum_tup_to_bytes, enumerations))
-    )
+    enum_cls_bytes = Enum(f"{enum_name}Bytes", list(map(_enum_tup_to_bytes, enumerations)))
     return enum_cls, enum_cls_bytes
 
 
@@ -163,9 +172,7 @@ def serialize_helper(msg_type: Enum, payload: bytes):
 
 
 serialize_client_init = partial(serialize_helper, ClientMsgTypeBytes.MSG_CLIENT_INIT)
-serialize_server_rpc_response = partial(
-    serialize_helper, ServerMsgTypeBytes.MSG_SERVER_RPC_RESP
-)
+serialize_server_rpc_response = partial(serialize_helper, ServerMsgTypeBytes.MSG_SERVER_RPC_RESP)
 
 
 def serialize_client_rpc_req(cmd_id: Enum, bs: bytes) -> Tuple[bytes]:

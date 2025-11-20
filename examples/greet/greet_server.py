@@ -1,14 +1,16 @@
-from enum import Enum
 import argparse
-from basic_socket_rpc.rpc_spec import RpcServerSpec, RpcServerResp
+import signal
+from enum import Enum
+
 from basic_socket_rpc.rpc_serialization_functions import (
-    serialize_str,
+    call_no_args,
     deserialize_str,
+    int_to_le_bytes_4,
     make_server_deserializer,
     parse_int_from_le_bytes_4,
-    int_to_le_bytes_4,
-    call_no_args,
+    serialize_str,
 )
+from basic_socket_rpc.rpc_spec import RpcServerResp, RpcServerSpec
 from basic_socket_rpc.rpc_threaded_server import serve
 
 
@@ -35,9 +37,7 @@ greet_server_spec = RpcServerSpec(
         ),
         RpcServerResp(
             cmd_id=greet_server_cmd_ids.add_2_words,
-            parse_and_call=make_server_deserializer(
-                parse_int_from_le_bytes_4, parse_int_from_le_bytes_4
-            ),
+            parse_and_call=make_server_deserializer(parse_int_from_le_bytes_4, parse_int_from_le_bytes_4),
             serialize_response=int_to_le_bytes_4,
             client_function=lambda a, b: a + b,
         ),

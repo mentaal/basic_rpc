@@ -1,10 +1,11 @@
 """Module to hold serialization functions"""
 
 from functools import partial, wraps
-from itertools import repeat, chain
-from typing import Tuple, Callable, Any, Iterable, TypeVar
+from itertools import chain, repeat
+from typing import Any, Callable, Iterable, Tuple, TypeVar, Union
 
-Buffer = memoryview | bytes
+
+Buffer = Union[memoryview, bytes]
 T = TypeVar("T")
 DeserializeResult = Tuple[T, Buffer]
 Deserializer = Callable[[Buffer], DeserializeResult]
@@ -24,9 +25,7 @@ def int_from_le_bytes(num_bytes: int, bs: Buffer) -> int:
     to_parse = bs[:num_bytes]
     len_to_parse = len(to_parse)
     if len_to_parse != num_bytes:
-        raise ValueError(
-            f"Not enough bytes to parse to integer. Expected: {num_bytes}. Got {len_to_parse}"
-        )
+        raise ValueError(f"Not enough bytes to parse to integer. Expected: {num_bytes}. Got {len_to_parse}")
     return int.from_bytes(to_parse, "little")
 
 
@@ -39,9 +38,7 @@ int_from_le_bytes_1 = partial(int_from_le_bytes, 1)
 def parse_int_from_le_bytes(num_bytes: int, bs: Buffer) -> DeserializeResult[int]:
     bs_len = len(bs)
     if bs_len < num_bytes:
-        raise ValueError(
-            f"Insufficient number of bytes to parse. Expected {num_bytes}, got: {bs_len}"
-        )
+        raise ValueError(f"Insufficient number of bytes to parse. Expected {num_bytes}, got: {bs_len}")
     return int_from_le_bytes(num_bytes, bs), bs[num_bytes:]
 
 
@@ -83,6 +80,7 @@ def make_deserialize_only(
             if len_remaining:
                 raise ValueError(error_template.format(len_remaining=len_remaining))
             return res  # discard remaining
+
     else:
 
         @wraps(deserializer)
@@ -120,9 +118,7 @@ def deserialize_str(bs: Buffer) -> DeserializeResult[str]:
     size, str_bytes = deserialize_cmd_msg_size(bs)
     str_bytes_len = len(str_bytes)
     if str_bytes_len < size:
-        raise ValueError(
-            f"Cannot deserialize string, missing bytes. Expected {size}, got {str_bytes_len}."
-        )
+        raise ValueError(f"Cannot deserialize string, missing bytes. Expected {size}, got {str_bytes_len}.")
     return str_bytes[:size].tobytes().decode(), str_bytes[size:]
 
 
@@ -134,9 +130,7 @@ def deserialize_bytes(bs: Buffer) -> DeserializeResult[bytes]:
     size, payload_bytes = deserialize_cmd_msg_size(bs)
     payload_bytes_len = len(payload_bytes)
     if payload_bytes_len < size:
-        raise ValueError(
-            f"Cannot deserialize msg, missing bytes. Expected {size}, got {payload_bytes_len}."
-        )
+        raise ValueError(f"Cannot deserialize msg, missing bytes. Expected {size}, got {payload_bytes_len}.")
     return payload_bytes[:size], payload_bytes[size:]
 
 
@@ -151,9 +145,7 @@ def _deserializer_helper(parsers: Iterable[Callable], bs: Buffer) -> Iterable[An
         raise ValueError(f"ParseError, {len(bs)} unparsed bytes remaining in message")
 
 
-def _deserializer_helper_and_remaining(
-    parsers: Iterable[Callable], bs: Buffer
-) -> Iterable[Any]:
+def _deserializer_helper_and_remaining(parsers: Iterable[Callable], bs: Buffer) -> Iterable[Any]:
     for p in parsers:
         result, bs = p(bs)
         yield result
@@ -171,9 +163,7 @@ def make_deserializer(*args, _and_remaining=False) -> Deserializer:
     if _and_remaining:
 
         def deserializer_and_remaining(bs: Buffer) -> DeserializeResult:
-            *results, remaining_bs = _deserializer_helper_and_remaining(
-                args, to_memory_view(bs)
-            )
+            *results, remaining_bs = _deserializer_helper_and_remaining(args, to_memory_view(bs))
             return results, remaining_bs
 
         deserializer = deserializer_and_remaining
@@ -212,9 +202,7 @@ def make_serializer(*serializer_funcs, _splat_args: bool = True) -> Callable:
     def serializer_args(args):
         len_args = len(args)
         if len_serializer_funcs != len_args:
-            raise ValueError(
-                f"Number of supplied args: {len_args} doesn't match expectation: {len_serializer_funcs}"
-            )
+            raise ValueError(f"Number of supplied args: {len_args} doesn't match expectation: {len_serializer_funcs}")
         return b"".join((f(a) for f, a in zip(serializer_funcs, args)))
 
     if _splat_args:
@@ -249,10 +237,7 @@ def make_serialize_array_fixed_size(
 
         payload = b"".join(serialized_elements)
         if len(serialized_elements) != num_elements:
-            raise ValueError(
-                f"Expected {num_elements} elements in array. Got: "
-                f"{len(serialized_elements)}"
-            )
+            raise ValueError(f"Expected {num_elements} elements in array. Got: " f"{len(serialized_elements)}")
         return payload
 
     return array_serializer_fixed_size
@@ -280,9 +265,7 @@ def make_serialize_array(element_serializer: Callable) -> Callable:
     def array_serializer(array: Iterable) -> bytes:
         serialized_elements = list(map(element_serializer, array))
         num_elements = len(serialized_elements)
-        payload = b"".join(
-            chain([int_to_le_bytes_4(num_elements)], serialized_elements)
-        )
+        payload = b"".join(chain([int_to_le_bytes_4(num_elements)], serialized_elements))
         return serialize_bytes(payload)
 
     return array_serializer

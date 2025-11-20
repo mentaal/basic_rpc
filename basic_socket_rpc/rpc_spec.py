@@ -1,18 +1,20 @@
 """Module to hold RPC spec for rpc implementation."""
 
-from typing import NamedTuple, Callable, Any, List, Tuple, Optional
 from enum import Enum
+from typing import Any, Callable, List, NamedTuple, Tuple
+
+from .rpc_serialization_functions import Buffer
 
 
 class RpcClientReq(NamedTuple):
     cmd_id: Enum
     serialize_request: Callable[..., bytes]
-    parse_response: Callable[[bytes], Any]
+    parse_response: Callable[[Buffer], Any]
 
 
 class RpcServerResp(NamedTuple):
     cmd_id: Enum
-    parse_and_call: Callable[[bytes], Any]
+    parse_and_call: Callable[[Buffer], Any]
     serialize_response: Callable[..., bytes]
     client_function: Callable
 
@@ -37,8 +39,6 @@ class RpcServerSpec(NamedTuple):
     # True indicates that the connection will be allowed to continue
     # False indicates that the connection should be closed
     # This is useful to implement something like resource/access constraints
-    on_client_connect: Callable[[dict, dict], bool] = (
-        lambda d1, d2: True
-    )  # shared_data, local_data
+    on_client_connect: Callable[[dict, dict], bool] = lambda d1, d2: True  # shared_data, local_data
     on_client_disconnect: Callable[[dict, dict], None] = lambda d1, d2: None
     max_concurrent_connections: int = 5

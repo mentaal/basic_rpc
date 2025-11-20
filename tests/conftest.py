@@ -5,30 +5,31 @@ See rpc_low_level.py for more discussion on the protocol
 """
 
 from enum import Enum
-import pytest
 from functools import partial
 
-from basic_socket_rpc.rpc_spec import RpcServerResp, RpcClientSpec, RpcClientReq
+import pytest
+
+from basic_socket_rpc.rpc_blocking_client import gen_client_class
 from basic_socket_rpc.rpc_serialization_functions import (
-    serialize_str,
+    call_no_args,
     deserialize_str,
     deserialize_str_only,
+    int_from_le_bytes_4,
+    int_to_le_bytes_4,
+    make_apply,
+    make_deserialize_array,
+    make_deserialize_array_fixed_size,
+    make_deserializer_to_tuple,
+    make_serialize_array,
+    make_serialize_array_fixed_size,
     make_serializer,
     make_server_deserializer,
-    make_serialize_array_fixed_size,
-    make_deserialize_array_fixed_size,
-    make_serialize_array,
-    make_deserialize_array,
-    make_apply,
-    make_deserializer_to_tuple,
     parse_int_from_le_bytes_4,
-    int_to_le_bytes_4,
-    int_from_le_bytes_4,
-    call_no_args,
     parse_no_response,
+    serialize_str,
 )
+from basic_socket_rpc.rpc_spec import RpcClientReq, RpcClientSpec, RpcServerResp
 from basic_socket_rpc.rpc_threaded_server import make_exclusive_access_server_cm
-from basic_socket_rpc.rpc_blocking_client import gen_client_class
 
 
 HOST_NAME = "127.0.0.1"
@@ -71,27 +72,21 @@ exclusive_access_cm = make_exclusive_access_server_cm(
     ),
     RpcServerResp(
         cmd_id=greet_server_cmd_ids.add_2_words,
-        parse_and_call=make_server_deserializer(
-            parse_int_from_le_bytes_4, parse_int_from_le_bytes_4
-        ),
+        parse_and_call=make_server_deserializer(parse_int_from_le_bytes_4, parse_int_from_le_bytes_4),
         serialize_response=int_to_le_bytes_4,
         client_function=lambda a, b: a + b,
     ),
     RpcServerResp(
         cmd_id=greet_server_cmd_ids.sum_fixed_array,
         parse_and_call=make_server_deserializer(
-            make_deserialize_array_fixed_size(
-                num_elements=3, element_parser=parse_int_from_le_bytes_4
-            )
+            make_deserialize_array_fixed_size(num_elements=3, element_parser=parse_int_from_le_bytes_4)
         ),
         serialize_response=int_to_le_bytes_4,
         client_function=lambda arr: sum(arr),
     ),
     RpcServerResp(
         cmd_id=greet_server_cmd_ids.sum_array,
-        parse_and_call=make_server_deserializer(
-            make_deserialize_array(element_parser=parse_int_from_le_bytes_4)
-        ),
+        parse_and_call=make_server_deserializer(make_deserialize_array(element_parser=parse_int_from_le_bytes_4)),
         serialize_response=int_to_le_bytes_4,
         client_function=lambda arr: sum(arr),
     ),
@@ -101,9 +96,7 @@ exclusive_access_cm = make_exclusive_access_server_cm(
             make_deserialize_array(element_parser=parse_int_from_le_bytes_4),
             deserialize_str,
         ),
-        serialize_response=make_apply(
-            make_serializer(int_to_le_bytes_4, serialize_str)
-        ),
+        serialize_response=make_apply(make_serializer(int_to_le_bytes_4, serialize_str)),
         client_function=lambda arr, s: (sum(arr), s),
     ),
     RpcServerResp(
@@ -157,9 +150,7 @@ greet_client_spec = RpcClientSpec(
                 make_serialize_array(element_serializer=int_to_le_bytes_4),
                 serialize_str,
             ),
-            parse_response=make_deserializer_to_tuple(
-                parse_int_from_le_bytes_4, deserialize_str
-            ),
+            parse_response=make_deserializer_to_tuple(parse_int_from_le_bytes_4, deserialize_str),
         ),
         RpcClientReq(
             cmd_id=greet_client_cmd_ids.func_no_args,
