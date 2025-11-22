@@ -48,6 +48,10 @@ parse_int_from_le_bytes_2 = partial(parse_int_from_le_bytes, 2)
 parse_int_from_le_bytes_1 = partial(parse_int_from_le_bytes, 1)
 
 
+def serialize_no_args() -> bytes:
+    return b""
+
+
 def serialize_bool(b: bool) -> bytes:
     return b"\x01" if b else b"\x00"
 
