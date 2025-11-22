@@ -40,7 +40,7 @@ greet_client_spec = RpcClientSpec(
         ),
         RpcClientReq(
             cmd_id=greet_client_cmd_ids.func_no_args,
-            serialize_request=lambda: b"",
+            serialize_request=serialize_no_response,
             parse_response=parse_no_response,
         ),
     ],

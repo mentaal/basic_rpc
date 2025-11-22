@@ -32,7 +32,7 @@ Server response protocol:
 import builtins
 from enum import Enum
 from functools import partial
-from typing import Any, Callable, Iterable, List, NamedTuple, Optional, Tuple, Union
+from typing import Any, Callable, Iterable, List, NamedTuple, Optional, Tuple, Type, TypeVar, Union
 
 from .rpc_serialization_functions import (
     Buffer,
@@ -54,7 +54,7 @@ def is_exception(obj: Any) -> bool:
 built_in_exceptions = {k: v for k, v in builtins.__dict__.items() if is_exception(v)}
 
 
-def enum_from_value(enum_class: "enum.EnumMeta", value: Any) -> Optional[Enum]:
+def enum_from_value(enum_class: Type[Enum], value: int) -> Optional[Enum]:
     try:
         return enum_class(value)
     except ValueError:
@@ -76,7 +76,7 @@ def serialize_cmd_enum(en) -> bytes:
 deserialize_cmd_id = int_from_le_bytes_2
 
 
-def deserialize_version(bs: bytes) -> Tuple[int, ...]:
+def deserialize_version(bs: memoryview) -> Tuple[int, ...]:
     if len(bs) >= 3:
         return tuple(bs[:3])
     raise ValueError(f"Cannot deserialize version, insufficient bytes: {len(bs)}. Expected 3")
@@ -150,7 +150,7 @@ ServerMsgType, ServerMsgTypeBytes = gen_enum_and_bytes(
 )
 
 
-def parse_msg_header(enum_type: "enum_meta", msg: Buffer):
+def parse_msg_header(enum_type: Type[Enum], msg: Buffer) -> Enum:
     msg_type = enum_from_value(enum_type, msg[:1])
     if not msg_type:
         raise ProtocolError(f"Unexpected msg_type: {msg_type}")
@@ -175,14 +175,14 @@ serialize_client_init = partial(serialize_helper, ClientMsgTypeBytes.MSG_CLIENT_
 serialize_server_rpc_response = partial(serialize_helper, ServerMsgTypeBytes.MSG_SERVER_RPC_RESP)
 
 
-def serialize_client_rpc_req(cmd_id: Enum, bs: bytes) -> Tuple[bytes]:
+def serialize_client_rpc_req(cmd_id: Enum, bs: bytes) -> bytes:
     return serialize_helper(
         msg_type=ClientMsgTypeBytes.MSG_CLIENT_RPC_REQ,
         payload=b"".join([serialize_cmd_enum(cmd_id), bs]),
     )
 
 
-def serialize_server_init_resp(success: bool) -> Tuple[bytes]:
+def serialize_server_init_resp(success: bool) -> bytes:
     return serialize_helper(
         msg_type=ServerMsgTypeBytes.MSG_SERVER_INIT,
         payload=serialize_bool(success),

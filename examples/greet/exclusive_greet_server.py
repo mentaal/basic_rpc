@@ -36,30 +36,32 @@ class greet_server_cmd_ids(Enum):
 
 
 exclusive_access_cm = make_exclusive_access_server_cm(
-    RpcServerResp(
-        cmd_id=greet_server_cmd_ids.hello,
-        parse_and_call=make_server_deserializer(deserialize_str),
-        serialize_response=serialize_str,
-        client_function=lambda name: f"hello {name}",
-    ),
-    RpcServerResp(
-        cmd_id=greet_server_cmd_ids.goodbye,
-        parse_and_call=make_server_deserializer(deserialize_str),
-        serialize_response=serialize_str,
-        client_function=lambda name: f"goodbye {name}",
-    ),
-    RpcServerResp(
-        cmd_id=greet_server_cmd_ids.add_2_words,
-        parse_and_call=make_server_deserializer(parse_int_from_le_bytes_4, parse_int_from_le_bytes_4),
-        serialize_response=int_to_le_bytes_4,
-        client_function=lambda a, b: a + b,
-    ),
-    RpcServerResp(
-        cmd_id=greet_server_cmd_ids.func_no_args,
-        parse_and_call=call_no_args,
-        serialize_response=lambda _: b"",
-        client_function=lambda: print("hello with no args") or None,
-    ),
+    responses=(
+        RpcServerResp(
+            cmd_id=greet_server_cmd_ids.hello,
+            parse_and_call=make_server_deserializer(deserialize_str),
+            serialize_response=serialize_str,
+            client_function=lambda name: f"hello {name}",
+        ),
+        RpcServerResp(
+            cmd_id=greet_server_cmd_ids.goodbye,
+            parse_and_call=make_server_deserializer(deserialize_str),
+            serialize_response=serialize_str,
+            client_function=lambda name: f"goodbye {name}",
+        ),
+        RpcServerResp(
+            cmd_id=greet_server_cmd_ids.add_2_words,
+            parse_and_call=make_server_deserializer(parse_int_from_le_bytes_4, parse_int_from_le_bytes_4),
+            serialize_response=int_to_le_bytes_4,
+            client_function=lambda a, b: a + b,
+        ),
+        RpcServerResp(
+            cmd_id=greet_server_cmd_ids.func_no_args,
+            parse_and_call=call_no_args,
+            serialize_response=lambda _: b"",
+            client_function=lambda: print("hello with no args") or None,
+        ),
+    )
 )
 
 if __name__ == "__main__":

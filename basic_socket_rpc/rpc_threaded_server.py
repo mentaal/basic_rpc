@@ -8,11 +8,12 @@ See rpc_low_level.py for more discussion on the protocol
 import socket
 import threading
 from contextlib import contextmanager
+from enum import Enum
 from functools import partial
 from logging import debug
 from logging import error as log_error
 from time import sleep
-from typing import Any, Callable, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from .rpc_low_level import (
     ClientMsgTypeBytes,
@@ -31,7 +32,10 @@ from .rpc_low_level import (
     ServerShutdown,
     unexpected_msg_error,
 )
-from .rpc_spec import RpcServerResp, RpcServerSpec
+from .rpc_serialization_functions import (
+    Buffer,
+)
+from .rpc_spec import OnServerInit, OnServerInitResp, RpcServerResp, RpcServerSpec
 
 
 def log_print(msg: str):
@@ -43,10 +47,10 @@ class SocketServer:
     def __init__(
         self,
         sock: socket.socket,
-        client: Tuple[str, int],
+        client: Any,
         server_spec: RpcServerSpec,
         spec_dict: dict,
-        shared_data_lock: Tuple[Any, threading.Lock],
+        shared_data_lock: Tuple[Dict, Dict, threading.Lock],
         shutdown_event: threading.Event,
     ):
         self.sock = sock
@@ -58,7 +62,7 @@ class SocketServer:
         self.shutdown_event = shutdown_event
 
     def close(self):
-        debug("closing connection from client...")
+        debug(f"closing connection from client {self.client}...")
         self.session_established = False
         shared_data, local_data, lock = self.shared_data_lock
         with lock:
@@ -70,7 +74,7 @@ class SocketServer:
         self.sock.close()
         debug("closing connection from client complete")
 
-    def send_all(self, bs: bytes):
+    def send_all(self, bs: Buffer):
         sock, shutdown_event = self.sock, self.shutdown_event
         to_send_len = len(bs)
         total_sent = 0
@@ -79,7 +83,7 @@ class SocketServer:
             try:
                 num_sent = sock.send(bs[total_sent : total_sent + 8192])
                 if num_sent == 0:  # client has disconnected
-                    debug("client disconnected...")
+                    debug(f"client {self.client} disconnected...")
                     raise DisconnectedError()
                 total_sent += num_sent
             except socket.timeout:
@@ -88,6 +92,7 @@ class SocketServer:
         debug("finished sending msg")
 
     def recv_all(self, num: int) -> bytes:
+        assert num, f"Expected non-zero num argument. Got: {num}"
         sock, shutdown_event = self.sock, self.shutdown_event
         chunks = []
         remaining = num
@@ -106,11 +111,11 @@ class SocketServer:
                 if remaining == 0:  # done
                     return b"".join(chunks)
             else:
-                debug("client disconnected...")
+                debug(f"client {self.client} disconnected...")
                 raise DisconnectedError()
+        raise RuntimeError("Expected unreachable in recv_all")
 
-    def get_msg(self):
-        sock, shutdown_event = self.sock, self.shutdown_event
+    def get_msg(self) -> Tuple[Enum, memoryview]:
         msg_size_bytes = self.recv_all(4)
         msg_size = deserialize_msg_size(msg_size_bytes)
         debug(f"received a message of payload size: {msg_size}")
@@ -119,12 +124,13 @@ class SocketServer:
         msg_bytes = self.recv_all(msg_size - 4)
         # debug(f'msg_bytes: {msg_bytes}')
 
-        msg_type = parse_msg_header_from_client(msg_bytes)
-        payload = msg_bytes[REQ_HDR_PREFIX_SIZE - 4 :]
+        msg_mv = memoryview(msg_bytes)
+        msg_type = parse_msg_header_from_client(msg_mv)
+        payload = msg_mv[REQ_HDR_PREFIX_SIZE - 4 :]
         debug(f"received a message of type: {msg_type}")
         return msg_type, payload
 
-    def handle_init(self, msg_type: ClientMsgTypeBytes, msg: bytes):
+    def handle_init(self, msg_type: ClientMsgTypeBytes, msg: memoryview):
         if not self.session_established:
             major, minor, patch = deserialize_version(msg)
             if MAJOR_VERSION != major:
@@ -144,7 +150,7 @@ class SocketServer:
         else:
             raise ProtocolError("Initialization already occurred")
 
-    def handle_cmd(self, msg: bytes):
+    def handle_cmd(self, msg: memoryview):
         if len(msg) < 2:
             raise ProtocolError("Insufficient bytes in command.")
         cmd_id = deserialize_cmd_id(msg)
@@ -169,9 +175,8 @@ class SocketServer:
         self.sock.sendall(response)
 
     def run(self):
-        sock = self.sock
 
-        debug("waiting for a message from client...")
+        debug("waiting for a message from client {self.client} ...")
         try:
             while True:
                 try:
@@ -241,7 +246,7 @@ def accepter(
         debug(f"Got connection from address: {address}")
         socket_server = SocketServer(
             sock=client_sock,
-            client=(client_sock, address),
+            client=address,
             shutdown_event=shutdown_event,
             server_spec=server_spec,
             spec_dict=spec_dict,
@@ -251,7 +256,7 @@ def accepter(
         child_threads[:] = (t for t in child_threads if t.is_alive())
         child_threads.append(thread)
         thread.start()
-    debug("waiting for down client threads")
+    debug("waiting for client threads to shutdown")
     for thread in child_threads:
         safe_join(thread)
     debug("client threads shutdown")
@@ -268,7 +273,7 @@ def serve(
     host_name: str,
     port: int,
     server_spec: RpcServerSpec,
-    _shutdown_event: threading.Event = None,
+    _shutdown_event: Optional[threading.Event] = None,
 ):
     shutdown_event = _shutdown_event or threading.Event()
     accepter_thread = threading.Thread(
@@ -369,7 +374,7 @@ def single_client_only_connect(shared_data: dict, local_data: dict) -> bool:
     return user_can_connect
 
 
-def single_client_only_disconnect(shared_data: dict, local_data: dict) -> bool:
+def single_client_only_disconnect(shared_data: dict, local_data: dict):
     connected_local = local_data["user_connected"]
     connected_shared = shared_data["user_connected"]
     owns_session = connected_local and connected_shared
@@ -391,26 +396,51 @@ def single_client_only_disconnect(shared_data: dict, local_data: dict) -> bool:
     local_data["user_connected"] = False
 
 
-gen_exclusive_access_shared_data = lambda: {
-    "user_connected": False,
-    "waiting_threads": [],
-}
-gen_exclusive_access_local_data = lambda: {"user_connected": False}
+def gen_exclusive_access_shared_data() -> Dict[str, Any]:
+    return {
+        "user_connected": False,
+        "waiting_threads": [],
+    }
 
 
-def make_exclusive_access_server(responses: Tuple[RpcServerResp]) -> Callable:
+def gen_exclusive_access_local_data() -> Dict[str, Any]:
+    return {
+        "user_connected": False,
+    }
+
+
+def on_exclusive_access_server_init() -> OnServerInitResp:
+    return (
+        gen_exclusive_access_shared_data(),
+        gen_exclusive_access_local_data,
+    )
+
+
+def make_exclusive_access_server(
+    responses: Tuple[RpcServerResp, ...],
+    on_server_init: OnServerInit = on_exclusive_access_server_init,
+    on_client_connect: Callable = single_client_only_connect,
+    on_client_disconnect: Callable = single_client_only_disconnect,
+) -> Callable:
     server_spec = RpcServerSpec(
         responses=responses,
-        on_server_init=lambda: (
-            gen_exclusive_access_shared_data(),
-            gen_exclusive_access_local_data,
-        ),
-        on_client_connect=single_client_only_connect,
-        on_client_disconnect=single_client_only_disconnect,
+        on_server_init=on_server_init,
+        on_client_connect=on_client_connect,
+        on_client_disconnect=on_client_disconnect,
     )
     return make_serve(server_spec)
 
 
-def make_exclusive_access_server_cm(*responses: RpcServerResp) -> Callable:
-    server = make_exclusive_access_server(responses)
+def make_exclusive_access_server_cm(
+    responses: Tuple[RpcServerResp, ...],
+    on_server_init: OnServerInit = on_exclusive_access_server_init,
+    on_client_connect: Callable = single_client_only_connect,
+    on_client_disconnect: Callable = single_client_only_disconnect,
+) -> Callable:
+    server = make_exclusive_access_server(
+        responses=responses,
+        on_server_init=on_server_init,
+        on_client_connect=on_client_connect,
+        on_client_disconnect=on_client_disconnect,
+    )
     return make_serve_cm(server)

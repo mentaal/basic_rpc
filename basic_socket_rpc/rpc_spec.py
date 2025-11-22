@@ -1,9 +1,13 @@
 """Module to hold RPC spec for rpc implementation."""
 
 from enum import Enum
-from typing import Any, Callable, List, NamedTuple, Tuple
+from typing import Any, Callable, Dict, NamedTuple, Tuple
 
 from .rpc_serialization_functions import Buffer
+
+
+OnServerInitResp = Tuple[Dict, Callable[[], Dict[str, Any]]]
+OnServerInit = Callable[[], OnServerInitResp]
 
 
 class RpcClientReq(NamedTuple):
@@ -20,19 +24,19 @@ class RpcServerResp(NamedTuple):
 
 
 class RpcClientSpec(NamedTuple):
-    requests: List[RpcClientReq]
+    requests: Tuple[RpcClientReq]
     on_connect: Callable[[Any], None] = lambda local_data: None
     on_disconnect: Callable[[Any], bool] = lambda local_data: None
 
 
 class RpcServerSpec(NamedTuple):
-    responses: List[RpcServerResp]
+    responses: Tuple[RpcServerResp, ...]
     # Called on server initialization. This callback is expected to produce
     # something which is consumed by the on_client_connect and
     # on_client_disconnect callbacks. Useful for defining shared structures such
     # as locks. Return a dictionary shared by all connected users and also
     # a factory function which returns a dictionary which is local to each user
-    on_server_init: Callable[[], Tuple[dict, Callable]] = lambda: ({}, lambda: {})
+    on_server_init: OnServerInit = lambda: ({}, lambda: {})
     on_server_close: Callable[[dict], None] = lambda _: None
     # this should be a function accepting a connection specific dictionary which
     # returns a boolean where:
