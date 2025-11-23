@@ -117,25 +117,35 @@ def serialize_bytes(bs: bytes) -> bytes:
     )
 
 
+def serialize_no_response(_: Any) -> bytes:
+    return b""
+
+
 def deserialize_str(bs: Buffer) -> DeserializeResult[str]:
     """Returns the deserialized string and the remaining bytes after the string"""
     size, str_bytes = deserialize_cmd_msg_size(bs)
     str_bytes_len = len(str_bytes)
     if str_bytes_len < size:
         raise ValueError(f"Cannot deserialize string, missing bytes. Expected {size}, got {str_bytes_len}.")
-    return str_bytes[:size].tobytes().decode(), str_bytes[size:]
+    return bytes(str_bytes[:size]).decode(), str_bytes[size:]
 
 
 deserialize_str_only = make_deserialize_only(deserialize_str, "string")
 
 
-def deserialize_bytes(bs: Buffer) -> DeserializeResult[bytes]:
+def _deserialize_bytes(bs: Buffer) -> DeserializeResult[Buffer]:
     """Returns the deserialized msg bytes and the remaining bytes after the msg"""
     size, payload_bytes = deserialize_cmd_msg_size(bs)
     payload_bytes_len = len(payload_bytes)
     if payload_bytes_len < size:
         raise ValueError(f"Cannot deserialize msg, missing bytes. Expected {size}, got {payload_bytes_len}.")
     return payload_bytes[:size], payload_bytes[size:]
+
+
+def deserialize_bytes(bs: Buffer) -> DeserializeResult[bytes]:
+    # _deserialize_bytes could return a (memoryview, Buffer)
+    payload_bytes, rest = _deserialize_bytes(bs)
+    return bytes(payload_bytes), rest
 
 
 deserialize_bytes_only = make_deserialize_only(deserialize_bytes, "bytes")
@@ -277,7 +287,7 @@ def make_serialize_array(element_serializer: Callable) -> Callable:
 
 def make_deserialize_array(element_parser: Callable) -> Callable:
     def deserialize_array(bs: Buffer) -> Tuple[Any, Buffer]:
-        array_def, remaining_bs = deserialize_bytes(bs)
+        array_def, remaining_bs = _deserialize_bytes(bs)
         array_len, array_bs = parse_int_from_le_bytes_4(array_def)
         parsers = repeat(element_parser, array_len)
         deserialized = tuple(_deserializer_helper(parsers, array_bs))
@@ -290,10 +300,6 @@ def call_no_args(func: Callable, bs: Buffer):
     if len(bs):
         raise ValueError("Expected no arguments in function invocation")
     return func()
-
-
-def serialize_no_response(_):
-    return b""
 
 
 def client_call_no_args():

@@ -374,7 +374,7 @@ def single_client_only_connect(shared_data: dict, local_data: dict) -> bool:
     return user_can_connect
 
 
-def single_client_only_disconnect(shared_data: dict, local_data: dict) -> bool:
+def single_client_only_disconnect(shared_data: dict, local_data: dict):
     connected_local = local_data["user_connected"]
     connected_shared = shared_data["user_connected"]
     owns_session = connected_local and connected_shared

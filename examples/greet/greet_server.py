@@ -7,6 +7,7 @@ from basic_socket_rpc.rpc_serialization_functions import (
     int_to_le_bytes_4,
     make_server_deserializer,
     parse_int_from_le_bytes_4,
+    serialize_no_response,
     serialize_str,
 )
 from basic_socket_rpc.rpc_spec import RpcServerResp, RpcServerSpec
@@ -43,7 +44,7 @@ greet_server_spec = RpcServerSpec(
         RpcServerResp(
             cmd_id=greet_server_cmd_ids.func_no_args,
             parse_and_call=call_no_args,
-            serialize_response=lambda _: b"",
+            serialize_response=serialize_no_response,
             client_function=lambda: print("hello with no args") or None,
         ),
     ),
