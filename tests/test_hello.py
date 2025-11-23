@@ -1,3 +1,4 @@
+import logging
 import threading
 from random import randint
 from time import sleep
@@ -7,6 +8,7 @@ import pytest
 from basic_socket_rpc.rpc_low_level import ProtocolError
 
 
+logger = logging.getLogger(__name__)
 TIMEOUT_SECS = 9
 
 
@@ -18,6 +20,7 @@ def client(hello_client_module_scope, hello_server_cm):
         sleep(1)
         with hello_client_module_scope:
             yield hello_client_module_scope
+            logger.info("Shutting down client")
 
 
 def test_hello_goodbye(client):
