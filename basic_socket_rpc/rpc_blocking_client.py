@@ -37,11 +37,13 @@ def has_timed_out(deadline: float) -> bool:
     return now() >= deadline
 
 
-class SocketClientBase:
+class SocketClient:
     def __init__(
         self,
         host_name: str,
         port: int,
+        on_connect: Callable[[Dict], None],
+        on_disconnect: Callable[[Dict], None],
         timeout_secs: float = 20,
         retry_interval_secs: float = 4.5,
     ):
@@ -55,6 +57,9 @@ class SocketClientBase:
         self.connected = False
         self.timeout_secs = timeout_secs
         self.retry_interval_secs = retry_interval_secs
+        self.local_data = {}
+        self.on_connect = on_connect
+        self.on_disconnect = on_disconnect
 
     def connect(self):
         if self.connected:
@@ -78,18 +83,20 @@ class SocketClientBase:
         try:
             self.connect_init_wait(deadline, self.retry_interval_secs)
         except Exception:
-            self.close()
+            self.disconnect()
             raise
         self.connected = True
+        self.on_connect(self.local_data)
         return self
 
-    def close(self):
+    def disconnect(self):
         if self.sock:
             logger.debug("Shutting down socket")
             self.sock.shutdown(socket.SHUT_RDWR)
             self.sock.close()
             self.sock = None
         self.connected = False
+        self.on_disconnect(self.local_data)
 
     def send_msg(self, cmd_id: Enum, bs: bytes, deadline: float):
         msg = serialize_client_rpc_req(cmd_id, bs)
@@ -184,35 +191,45 @@ class SocketClientBase:
                     continue
             total_sent += num_sent
 
-    __enter__ = connect
+
+class RpcClientBase:
+
+    def __init__(
+        self,
+        host_name: str,
+        port: int,
+        timeout_secs: float = 20,
+        retry_interval_secs: float = 4.5,
+    ):
+        self._socket_client = SocketClient(
+            host_name=host_name,
+            port=port,
+            timeout_secs=timeout_secs,
+            retry_interval_secs=retry_interval_secs,
+            on_connect=self._on_connect,
+            on_disconnect=self._on_disconnect,
+        )
+
+    def socket_client_connect(self):
+        self._socket_client.connect()
+
+    def socket_client_disconnect(self):
+        self._socket_client.disconnect()
+
+    @staticmethod
+    @abstractmethod
+    def _on_disconnect(local_data: Dict):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def _on_connect(local_data: Dict):
+        pass
+
+    __enter__ = socket_client_connect
 
     def __exit__(self, exc_type: Optional, exc_value: Optional, traceback: Optional):
-        self.close()
-
-
-class RpcClientBase(SocketClientBase, ABC):
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.local_data = {}
-
-    def close(self):
-        super().close()
-        self.on_disconnect(self.local_data)
-
-    def connect_init_wait(self, *args, **kwargs):
-        super().connect_init_wait(*args, **kwargs)
-        self.on_disconnect(self.local_data)
-
-    @staticmethod
-    @abstractmethod
-    def on_disconnect(local_data: Dict):
-        pass
-
-    @staticmethod
-    @abstractmethod
-    def on_connect(local_data: Dict):
-        pass
+        self.socket_client_disconnect()
 
 
 def _create_req_func(client_req: RpcClientReq) -> Callable:
@@ -220,8 +237,8 @@ def _create_req_func(client_req: RpcClientReq) -> Callable:
     def req_func(self, *args, _timeout_secs=10, **kwargs):
         bs = client_req.serialize_request(*args, **kwargs)
         deadline = now() + _timeout_secs
-        self.send_msg(cmd_id=client_req.cmd_id, bs=bs, deadline=deadline)
-        msg_type, response_payload = self.get_msg(deadline)
+        self._socket_client.send_msg(cmd_id=client_req.cmd_id, bs=bs, deadline=deadline)
+        msg_type, response_payload = self._socket_client.get_msg(deadline)
         if msg_type != ServerMsgTypeBytes.MSG_SERVER_RPC_RESP:
             unexpected_msg_error(ServerMsgTypeBytes.MSG_SERVER_RPC_RESP, msg_type)
 
@@ -232,8 +249,8 @@ def _create_req_func(client_req: RpcClientReq) -> Callable:
 
 def gen_client_class(client_spec: RpcClientSpec):
     class_dict = {req.cmd_id.name: _create_req_func(req) for req in client_spec.requests}
-    class_dict["on_connect"] = staticmethod(client_spec.on_connect)
-    class_dict["on_disconnect"] = staticmethod(client_spec.on_disconnect)
+    class_dict["_on_connect"] = staticmethod(client_spec.on_connect)
+    class_dict["_on_disconnect"] = staticmethod(client_spec.on_disconnect)
     return type(
         "RpcClient",
         (RpcClientBase,),

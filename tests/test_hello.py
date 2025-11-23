@@ -50,7 +50,7 @@ def test_concurrent_users_only_one(client, hello_client_gen):
         # hello_client here represents a second user attempting to use the
         # server but we have prevented this explicitly in the server spec
         # See conftest.py for how this is done
-        hello_client.connect()
+        hello_client.socket_client_connect()
     # original client shouldn't be affected
     assert 3050 == client.add_2_words(1000, 2050)
 
@@ -65,9 +65,9 @@ def test_waiting_in_line(client, hello_client_gen):
     client_thread = threading.Thread(target=connect_and_say_hi, args=(hello_client,))
     client_thread.start()
     # hello_client should be blocked now until we disconnect client
-    client.close()
+    client.socket_client_disconnect()
     client_thread.join()
-    client.connect()
+    client.socket_client_connect()
     assert 3050 == client.add_2_words(1000, 2050)
 
 
