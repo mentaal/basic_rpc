@@ -35,7 +35,7 @@ from .rpc_low_level import (
 from .rpc_serialization_functions import (
     Buffer,
 )
-from .rpc_spec import RpcServerResp, RpcServerSpec
+from .rpc_spec import OnServerInit, OnServerInitResp, RpcServerResp, RpcServerSpec
 
 
 def log_print(msg: str):
@@ -396,26 +396,51 @@ def single_client_only_disconnect(shared_data: dict, local_data: dict) -> bool:
     local_data["user_connected"] = False
 
 
-gen_exclusive_access_shared_data = lambda: {
-    "user_connected": False,
-    "waiting_threads": [],
-}
-gen_exclusive_access_local_data = lambda: {"user_connected": False}
+def gen_exclusive_access_shared_data() -> Dict[str, Any]:
+    return {
+        "user_connected": False,
+        "waiting_threads": [],
+    }
 
 
-def make_exclusive_access_server(responses: Tuple[RpcServerResp]) -> Callable:
+def gen_exclusive_access_local_data() -> Dict[str, Any]:
+    return {
+        "user_connected": False,
+    }
+
+
+def on_exclusive_access_server_init() -> OnServerInitResp:
+    return (
+        gen_exclusive_access_shared_data(),
+        gen_exclusive_access_local_data,
+    )
+
+
+def make_exclusive_access_server(
+    responses: Tuple[RpcServerResp, ...],
+    on_server_init: OnServerInit = on_exclusive_access_server_init,
+    on_client_connect: Callable = single_client_only_connect,
+    on_client_disconnect: Callable = single_client_only_disconnect,
+) -> Callable:
     server_spec = RpcServerSpec(
         responses=responses,
-        on_server_init=lambda: (
-            gen_exclusive_access_shared_data(),
-            gen_exclusive_access_local_data,
-        ),
-        on_client_connect=single_client_only_connect,
-        on_client_disconnect=single_client_only_disconnect,
+        on_server_init=on_server_init,
+        on_client_connect=on_client_connect,
+        on_client_disconnect=on_client_disconnect,
     )
     return make_serve(server_spec)
 
 
-def make_exclusive_access_server_cm(*responses: RpcServerResp) -> Callable:
-    server = make_exclusive_access_server(responses)
+def make_exclusive_access_server_cm(
+    responses: Tuple[RpcServerResp, ...],
+    on_server_init: OnServerInit = on_exclusive_access_server_init,
+    on_client_connect: Callable = single_client_only_connect,
+    on_client_disconnect: Callable = single_client_only_disconnect,
+) -> Callable:
+    server = make_exclusive_access_server(
+        responses=responses,
+        on_server_init=on_server_init,
+        on_client_connect=on_client_connect,
+        on_client_disconnect=on_client_disconnect,
+    )
     return make_serve_cm(server)
