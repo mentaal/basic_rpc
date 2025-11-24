@@ -234,7 +234,7 @@ class RpcClientBase:
 
 def _create_req_func(client_req: RpcClientReq) -> Callable:
     @wraps(client_req.serialize_request)
-    def req_func(self, *args, _timeout_secs=10, **kwargs):
+    def req_func(self, *args, _timeout_secs=client_req.response_timeout, **kwargs):
         bs = client_req.serialize_request(*args, **kwargs)
         deadline = now() + _timeout_secs
         self._socket_client.send_msg(cmd_id=client_req.cmd_id, bs=bs, deadline=deadline)

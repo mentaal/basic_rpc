@@ -176,7 +176,7 @@ class SocketServer:
 
     def run(self):
 
-        debug("waiting for a message from client {self.client} ...")
+        debug(f"waiting for a message from client {self.client} ...")
         try:
             while True:
                 try:
