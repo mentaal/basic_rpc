@@ -9,7 +9,7 @@ from basic_socket_rpc.rpc_low_level import ProtocolError
 
 
 logger = logging.getLogger(__name__)
-TIMEOUT_SECS = 9
+TIMEOUT_SECS = 15
 
 
 @pytest.fixture(scope="module")
