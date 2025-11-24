@@ -27,7 +27,7 @@ from .rpc_spec import RpcClientReq, RpcClientSpec
 
 
 logger = logging.getLogger(__name__)
-CONNECT_TIMEOUT = 7
+CONNECT_TIMEOUT = 15
 
 
 def has_timed_out(deadline: float) -> bool:
@@ -44,11 +44,11 @@ class SocketClient:
         port: int,
         on_connect: Callable[[Dict], None],
         on_disconnect: Callable[[Dict], None],
-        timeout_secs: float = 20,
-        retry_interval_secs: float = 4.5,
+        timeout_secs: float = 60,
+        retry_interval_secs: float = 10,
     ):
         if timeout_secs < CONNECT_TIMEOUT:
-            err_msg = "Connect on sockets don't like timeouts too short. Provide one larger than 5 secs"
+            err_msg = f"Connect on sockets don't like timeouts too short. Provide one larger than {CONNECT_TIMEOUT} secs"
             logger.error(err_msg)
             raise ValueError(err_msg)
         self.sock = None
@@ -66,13 +66,13 @@ class SocketClient:
             err_msg = "Already connected"
             logger.error(err_msg)
             raise ValueError(err_msg)
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, True)
-        sock.settimeout(CONNECT_TIMEOUT)
-        logger.info(f"connecting to host: {self.host}")
         start = now()
         deadline = start + self.timeout_secs
         while True:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, True)
+            sock.settimeout(CONNECT_TIMEOUT)
+            logger.info(f"connecting to host: {self.host}")
             try:
                 sock.connect(self.host)
                 break
