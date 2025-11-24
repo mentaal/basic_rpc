@@ -48,7 +48,9 @@ class SocketClient:
         retry_interval_secs: float = 10,
     ):
         if timeout_secs < CONNECT_TIMEOUT:
-            err_msg = f"Connect on sockets don't like timeouts too short. Provide one larger than {CONNECT_TIMEOUT} secs"
+            err_msg = (
+                f"Connect on sockets don't like timeouts too short. Provide one larger than {CONNECT_TIMEOUT} secs"
+            )
             logger.error(err_msg)
             raise ValueError(err_msg)
         self.sock = None

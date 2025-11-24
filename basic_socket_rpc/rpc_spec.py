@@ -14,7 +14,7 @@ class RpcClientReq(NamedTuple):
     cmd_id: Enum
     serialize_request: Callable[..., bytes]
     parse_response: Callable[[Buffer], Any]
-    response_timeout:int = 20
+    response_timeout: int = 20
 
 
 class RpcServerResp(NamedTuple):
