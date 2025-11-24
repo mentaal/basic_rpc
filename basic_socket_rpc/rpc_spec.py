@@ -25,7 +25,7 @@ class RpcServerResp(NamedTuple):
 
 
 class RpcClientSpec(NamedTuple):
-    requests: Tuple[RpcClientReq]
+    requests: Tuple[RpcClientReq, ...]
     on_connect: Callable[[Any], None] = lambda local_data: None
     on_disconnect: Callable[[Any], bool] = lambda local_data: None
 
