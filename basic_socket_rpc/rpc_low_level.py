@@ -30,6 +30,7 @@ Server response protocol:
 """
 
 import builtins
+import traceback
 from enum import Enum
 from functools import partial
 from typing import Any, Callable, Iterable, List, NamedTuple, Optional, Tuple, Type, TypeVar, Union
@@ -191,7 +192,7 @@ def serialize_server_init_resp(success: bool) -> bytes:
 
 def serialize_exception(exc: Exception):
     name = type(exc).__name__
-    reason = str(exc)
+    reason = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     payload_bs = b"".join(map(serialize_str, [name, reason]))
     return serialize_helper(
         msg_type=ServerMsgTypeBytes.MSG_SERVER_EXCEPTION,
