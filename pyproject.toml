@@ -1,9 +1,12 @@
 [project]
 name = "basic-socket-rpc"
-version = "0.6.0"
+version = "0.6.1"
 description = "Basic binary socket based rpc for Python"
 readme = "README.md"
-license = "MIT"
+license = "MIT-0"
+classifiers = [
+   "License :: OSI Approved :: MIT No Attribution License (MIT-0)",
+]
 license-files = [
 "LICENSE",
 ]
@@ -23,3 +26,5 @@ build-backend = "uv_build"
 dev = [
     "pytest>=7.0.1",
 ]
+[project.urls]
+Repository = "https://github.com/mentaal/basic_rpc"
