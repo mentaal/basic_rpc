@@ -1,10 +1,8 @@
 #!/usr/bin/env python
 import argparse
 import signal
-import sys
 from enum import Enum
 from threading import Event
-from time import sleep
 
 from basic_socket_rpc.rpc_serialization_functions import (
     call_no_args,
@@ -14,9 +12,8 @@ from basic_socket_rpc.rpc_serialization_functions import (
     parse_int_from_le_bytes_4,
     serialize_str,
 )
-from basic_socket_rpc.rpc_spec import RpcServerResp, RpcServerSpec
-from basic_socket_rpc.rpc_threaded_server import make_exclusive_access_server_cm, serve
-
+from basic_socket_rpc.rpc_spec import RpcServerResp
+from basic_socket_rpc.rpc_threaded_server import make_exclusive_access_server_cm
 
 _finished = Event()
 
@@ -51,7 +48,9 @@ exclusive_access_cm = make_exclusive_access_server_cm(
         ),
         RpcServerResp(
             cmd_id=greet_server_cmd_ids.add_2_words,
-            parse_and_call=make_server_deserializer(parse_int_from_le_bytes_4, parse_int_from_le_bytes_4),
+            parse_and_call=make_server_deserializer(
+                parse_int_from_le_bytes_4, parse_int_from_le_bytes_4
+            ),
             serialize_response=int_to_le_bytes_4,
             client_function=lambda a, b: a + b,
         ),

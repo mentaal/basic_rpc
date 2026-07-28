@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 import random
-from typing import Any, List, Tuple
+from typing import Any
 
 from basic_socket_rpc.rpc_serialization_functions import (
     deserialize_bytes,
@@ -20,7 +22,7 @@ from basic_socket_rpc.rpc_serialization_functions import (
 def test_sanity():
     bs = bytes([0, 1, 2])
     serialized = serialize_bytes(bs)
-    deserialized, remaining = deserialize_bytes(serialized)
+    deserialized, _remaining = deserialize_bytes(serialized)
     assert deserialized == bs
 
     se = make_serializer(int_to_le_bytes_4, int_to_le_bytes_2)
@@ -47,14 +49,14 @@ de = make_deserializer(
     make_deserialize_array(parse_int_from_le_bytes_4),
 )
 
-rand_int = lambda: random.randint(0, 0xFFFF_FFFF)  # noqa: E731
-rand_int_2 = lambda: random.randint(0, 0xFFFF)  # noqa: E731
+rand_int = lambda: random.randint(0, 0xFFFF_FFFF)
+rand_int_2 = lambda: random.randint(0, 0xFFFF)
 
 
-def create_random_args_for_serialization() -> Tuple[Any, ...]:
+def create_random_args_for_serialization() -> tuple[Any, ...]:
     return (
         rand_int_2(),
-        list(rand_int() for _ in range(50_000)),
+        [rand_int() for _ in range(50_000)],
         tuple(rand_int() for _ in range(200_000)),
     )
 

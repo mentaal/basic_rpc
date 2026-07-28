@@ -37,7 +37,9 @@ greet_server_spec = RpcServerSpec(
         ),
         RpcServerResp(
             cmd_id=greet_server_cmd_ids.add_2_words,
-            parse_and_call=make_server_deserializer(parse_int_from_le_bytes_4, parse_int_from_le_bytes_4),
+            parse_and_call=make_server_deserializer(
+                parse_int_from_le_bytes_4, parse_int_from_le_bytes_4
+            ),
             serialize_response=int_to_le_bytes_4,
             client_function=lambda a, b: a + b,
         ),

@@ -1,31 +1,32 @@
 """Basic socket client to be used for RPC"""
 
+from __future__ import annotations
+
 import logging
 import socket
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from enum import Enum
 from functools import wraps
-from types import TracebackType
 from time import sleep
 from time import time as now
-from typing import Callable, Dict, Optional, Tuple, Type
+from types import TracebackType
+from typing import Callable
 
 from .rpc_low_level import (
+    REQ_HDR_PREFIX_SIZE,
+    VERSION_BYTES,
+    DisconnectedError,
+    ProtocolError,
+    ServerMsgTypeBytes,
     deserialize_exception_raise,
     deserialize_msg_size,
-    DisconnectedError,
     parse_msg_header_from_server,
-    ProtocolError,
-    REQ_HDR_PREFIX_SIZE,
     serialize_client_init,
     serialize_client_rpc_req,
-    ServerMsgTypeBytes,
     unexpected_msg_error,
-    VERSION_BYTES,
 )
 from .rpc_serialization_functions import deserialize_bool_only
 from .rpc_spec import RpcClientReq, RpcClientSpec
-
 
 logger = logging.getLogger(__name__)
 CONNECT_TIMEOUT = 15
@@ -43,15 +44,13 @@ class SocketClient:
         self,
         host_name: str,
         port: int,
-        on_connect: Callable[[Dict], None],
-        on_disconnect: Callable[[Dict], None],
+        on_connect: Callable[[dict], None],
+        on_disconnect: Callable[[dict], None],
         timeout_secs: float = 60,
         retry_interval_secs: float = 10,
     ):
         if timeout_secs < CONNECT_TIMEOUT:
-            err_msg = (
-                f"Connect on sockets don't like timeouts too short. Provide one larger than {CONNECT_TIMEOUT} secs"
-            )
+            err_msg = f"Connect on sockets don't like timeouts too short. Provide one larger than {CONNECT_TIMEOUT} secs"
             logger.error(err_msg)
             raise ValueError(err_msg)
         self.sock = None
@@ -105,7 +104,7 @@ class SocketClient:
         msg = serialize_client_rpc_req(cmd_id, bs)
         self.send_all(msg, deadline)
 
-    def get_msg(self, deadline: float) -> Tuple[Enum, memoryview]:
+    def get_msg(self, deadline: float) -> tuple[Enum, memoryview]:
         msg_size_bytes = self.recv_all(4, deadline)
         msg_size = deserialize_msg_size(msg_size_bytes)
         logger.debug(f"got response msg of size: {msg_size}")
@@ -160,7 +159,9 @@ class SocketClient:
                 recvd = sock.recv(min(remaining, 8192))
             except socket.timeout as ex:
                 if has_timed_out(deadline):
-                    raise ConnectionError("Timed out waiting for complete response from the server") from ex
+                    raise ConnectionError(
+                        "Timed out waiting for complete response from the server"
+                    ) from ex
                 else:
                     continue
             recvd_len = len(recvd)
@@ -197,7 +198,6 @@ class SocketClient:
 
 
 class RpcClientBase:
-
     def __init__(
         self,
         host_name: str,
@@ -222,21 +222,21 @@ class RpcClientBase:
 
     @staticmethod
     @abstractmethod
-    def _on_disconnect(local_data: Dict) -> None:
+    def _on_disconnect(local_data: dict) -> None:
         pass
 
     @staticmethod
     @abstractmethod
-    def _on_connect(local_data: Dict) -> None:
+    def _on_connect(local_data: dict) -> None:
         pass
 
     __enter__ = socket_client_connect
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_value: Optional[BaseException],
-        traceback: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
     ) -> None:
         self.socket_client_disconnect()
 
@@ -257,7 +257,9 @@ def _create_req_func(client_req: RpcClientReq) -> Callable:
 
 
 def gen_client_class(client_spec: RpcClientSpec):
-    class_dict = {req.cmd_id.name: _create_req_func(req) for req in client_spec.requests}
+    class_dict = {
+        req.cmd_id.name: _create_req_func(req) for req in client_spec.requests
+    }
     class_dict["_on_connect"] = staticmethod(client_spec.on_connect)
     class_dict["_on_disconnect"] = staticmethod(client_spec.on_disconnect)
     return type(

@@ -1,12 +1,10 @@
 import logging
 import threading
-from random import randint
 from time import sleep
 
 import pytest
 
 from basic_socket_rpc.rpc_low_level import ProtocolError
-
 
 logger = logging.getLogger(__name__)
 TIMEOUT_SECS = 15
