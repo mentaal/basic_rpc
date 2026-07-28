@@ -110,7 +110,7 @@ exclusive_access_cm = make_exclusive_access_server_cm(
 )
 
 greet_client_spec = RpcClientSpec(
-    requests=[
+    requests=(
         RpcClientReq(
             cmd_id=greet_client_cmd_ids.hello,
             serialize_request=serialize_str,
@@ -159,7 +159,7 @@ greet_client_spec = RpcClientSpec(
             serialize_request=lambda: b"",
             parse_response=parse_no_response,
         ),
-    ],
+    ),
     on_connect=lambda local_data: None,
     on_disconnect=lambda local_data: None,
 )
@@ -187,4 +187,4 @@ def hello_client_module_scope(hello_client_class):
 
 @pytest.fixture(scope="session")
 def hello_server_cm():
-    return exclusive_access_cm(host_name=HOST_NAME, port=PORT)
+    return exclusive_access_cm(HOST_NAME, PORT)

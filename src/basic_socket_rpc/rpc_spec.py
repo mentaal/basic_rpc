@@ -8,6 +8,7 @@ from .rpc_serialization_functions import Buffer
 
 OnServerInitResp = Tuple[Dict, Callable[[], Dict[str, Any]]]
 OnServerInit = Callable[[], OnServerInitResp]
+ParseAndCall = Callable[[Callable[..., Any], Buffer], Any]
 
 
 class RpcClientReq(NamedTuple):
@@ -19,7 +20,7 @@ class RpcClientReq(NamedTuple):
 
 class RpcServerResp(NamedTuple):
     cmd_id: Enum
-    parse_and_call: Callable[[Buffer], Any]
+    parse_and_call: ParseAndCall
     serialize_response: Callable[..., bytes]
     client_function: Callable
 
@@ -27,7 +28,7 @@ class RpcServerResp(NamedTuple):
 class RpcClientSpec(NamedTuple):
     requests: Tuple[RpcClientReq, ...]
     on_connect: Callable[[Any], None] = lambda local_data: None
-    on_disconnect: Callable[[Any], bool] = lambda local_data: None
+    on_disconnect: Callable[[Any], None] = lambda local_data: None
 
 
 class RpcServerSpec(NamedTuple):

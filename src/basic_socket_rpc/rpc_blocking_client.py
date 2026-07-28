@@ -5,9 +5,10 @@ import socket
 from abc import ABC, abstractmethod
 from enum import Enum
 from functools import wraps
+from types import TracebackType
 from time import sleep
 from time import time as now
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Tuple, Type
 
 from .rpc_low_level import (
     deserialize_exception_raise,
@@ -104,7 +105,7 @@ class SocketClient:
         msg = serialize_client_rpc_req(cmd_id, bs)
         self.send_all(msg, deadline)
 
-    def get_msg(self, deadline: float):
+    def get_msg(self, deadline: float) -> Tuple[Enum, memoryview]:
         msg_size_bytes = self.recv_all(4, deadline)
         msg_size = deserialize_msg_size(msg_size_bytes)
         logger.debug(f"got response msg of size: {msg_size}")
@@ -171,6 +172,7 @@ class SocketClient:
                     return b"".join(chunks)
             else:
                 raise DisconnectedError()
+        raise RuntimeError("Expected unreachable in recv_all")
 
     def send_all(self, bs: bytes, deadline: float):
         sock = self.sock
@@ -220,17 +222,22 @@ class RpcClientBase:
 
     @staticmethod
     @abstractmethod
-    def _on_disconnect(local_data: Dict):
+    def _on_disconnect(local_data: Dict) -> None:
         pass
 
     @staticmethod
     @abstractmethod
-    def _on_connect(local_data: Dict):
+    def _on_connect(local_data: Dict) -> None:
         pass
 
     __enter__ = socket_client_connect
 
-    def __exit__(self, exc_type: Optional, exc_value: Optional, traceback: Optional):
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_value: Optional[BaseException],
+        traceback: Optional[TracebackType],
+    ) -> None:
         self.socket_client_disconnect()
 
 

@@ -13,7 +13,7 @@ from functools import partial
 from logging import debug
 from logging import error as log_error
 from time import sleep
-from typing import Any, Callable, Dict, Optional, Tuple
+from typing import Any, Callable, ContextManager, Dict, Iterator, Optional, Tuple
 
 from .rpc_low_level import (
     ClientMsgTypeBytes,
@@ -130,7 +130,7 @@ class SocketServer:
         debug(f"received a message of type: {msg_type}")
         return msg_type, payload
 
-    def handle_init(self, msg_type: ClientMsgTypeBytes, msg: memoryview):
+    def handle_init(self, msg: memoryview):
         if not self.session_established:
             major, minor, patch = deserialize_version(msg)
             if MAJOR_VERSION != major:
@@ -182,7 +182,7 @@ class SocketServer:
                 try:
                     msg_type, payload = self.get_msg()
                     if msg_type == ClientMsgTypeBytes.MSG_CLIENT_INIT:
-                        self.handle_init(msg_type, payload)
+                        self.handle_init(payload)
                     elif msg_type == ClientMsgTypeBytes.MSG_CLIENT_RPC_REQ:
                         if not self.session_established:
                             raise ProtocolError("Need to initialize connection first")
@@ -199,7 +199,8 @@ class SocketServer:
                 except ProtocolError as exc:
                     self.handle_exception(exc)
                 except ServerRpcError as exc:
-                    self.handle_exception(exc.__cause__, rpc_exception=True)
+                    cause = exc.__cause__
+                    self.handle_exception(cause if isinstance(cause, Exception) else exc, rpc_exception=True)
                 except Exception as exc:
                     self.handle_exception(exc)
                     break
@@ -298,11 +299,11 @@ def serve(
         raise
 
 
-def make_serve(server_spec: RpcServerSpec) -> Callable:
+def make_serve(server_spec: RpcServerSpec) -> Callable[..., Any]:
     return partial(serve, server_spec=server_spec)
 
 
-def make_serve_cm(server: Callable) -> Callable:
+def make_serve_cm(server: Callable[..., Any]) -> Callable[[str, int], ContextManager[None]]:
     """Make a context manager in which to run the supplied server
     :param: Already made server (using something like `make_serve`)
     :returns: The context manager
@@ -313,7 +314,7 @@ def make_serve_cm(server: Callable) -> Callable:
     def serve_cm(
         host_name: str,
         port: int,
-    ) -> Callable:
+    ) -> Iterator[None]:
         kwargs = {
             "_shutdown_event": shutdown_event,
             "host_name": host_name,
@@ -419,9 +420,9 @@ def on_exclusive_access_server_init() -> OnServerInitResp:
 def make_exclusive_access_server(
     responses: Tuple[RpcServerResp, ...],
     on_server_init: OnServerInit = on_exclusive_access_server_init,
-    on_client_connect: Callable = single_client_only_connect,
-    on_client_disconnect: Callable = single_client_only_disconnect,
-) -> Callable:
+    on_client_connect: Callable[[Dict[str, Any], Dict[str, Any]], bool] = single_client_only_connect,
+    on_client_disconnect: Callable[[Dict[str, Any], Dict[str, Any]], None] = single_client_only_disconnect,
+) -> Callable[..., Any]:
     server_spec = RpcServerSpec(
         responses=responses,
         on_server_init=on_server_init,
@@ -434,9 +435,9 @@ def make_exclusive_access_server(
 def make_exclusive_access_server_cm(
     responses: Tuple[RpcServerResp, ...],
     on_server_init: OnServerInit = on_exclusive_access_server_init,
-    on_client_connect: Callable = single_client_only_connect,
-    on_client_disconnect: Callable = single_client_only_disconnect,
-) -> Callable:
+    on_client_connect: Callable[[Dict[str, Any], Dict[str, Any]], bool] = single_client_only_connect,
+    on_client_disconnect: Callable[[Dict[str, Any], Dict[str, Any]], None] = single_client_only_disconnect,
+) -> Callable[[str, int], ContextManager[None]]:
     server = make_exclusive_access_server(
         responses=responses,
         on_server_init=on_server_init,

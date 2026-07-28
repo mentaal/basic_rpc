@@ -8,7 +8,7 @@ from typing import Any, Callable, Iterable, Tuple, TypeVar, Union
 Buffer = Union[memoryview, bytes]
 T = TypeVar("T")
 DeserializeResult = Tuple[T, Buffer]
-Deserializer = Callable[[Buffer], DeserializeResult]
+Deserializer = Callable[[Buffer], Any]
 
 
 def int_to_le_bytes(num_bytes: int, num: int) -> bytes:
@@ -190,10 +190,10 @@ def make_deserializer(*args, _and_remaining=False) -> Deserializer:
     return deserializer
 
 
-def make_server_deserializer(*args) -> Callable:
+def make_server_deserializer(*args) -> Callable[[Callable[..., T], Buffer], T]:
     deserializer = make_deserializer(*args)
 
-    def deserialize_and_call(func: Callable, bs: Buffer):
+    def deserialize_and_call(func: Callable[..., T], bs: Buffer) -> T:
         return func(*deserializer(bs))
 
     return deserialize_and_call
@@ -203,8 +203,8 @@ def make_client_deserializer(*args) -> Callable:
     return make_deserializer(*args)
 
 
-def make_deserializer_to_tuple(*args) -> Callable:
-    def deserialize(bs: Buffer):
+def make_deserializer_to_tuple(*args) -> Callable[[Buffer], Tuple[Any, ...]]:
+    def deserialize(bs: Buffer) -> Tuple[Any, ...]:
         return tuple(_deserializer_helper(args, bs))
 
     return deserialize
@@ -296,17 +296,17 @@ def make_deserialize_array(element_parser: Callable) -> Callable:
     return deserialize_array
 
 
-def call_no_args(func: Callable, bs: Buffer):
+def call_no_args(func: Callable[[], T], bs: Buffer) -> T:
     if len(bs):
         raise ValueError("Expected no arguments in function invocation")
     return func()
 
 
-def client_call_no_args():
+def client_call_no_args() -> bytes:
     return b""
 
 
-def parse_no_response(bs: Buffer):
+def parse_no_response(bs: Buffer) -> None:
     len_bs = len(bs)
     if len_bs:
         raise ValueError(f"Unexpected response from server. Got {len_bs}")

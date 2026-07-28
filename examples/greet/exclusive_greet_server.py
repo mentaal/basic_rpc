@@ -85,7 +85,7 @@ if __name__ == "__main__":
     p = parser.parse_args()
 
     print("Server starting...")
-    with exclusive_access_cm(host_name=p.address, port=p.port):
+    with exclusive_access_cm(p.address, p.port):
         while not (finished := _finished.is_set()):
             _finished.wait(60)
         print("Server shutting down...")

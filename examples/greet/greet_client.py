@@ -1,6 +1,7 @@
 import argparse
 from enum import Enum
 from time import sleep
+from typing import Any, cast
 
 from basic_socket_rpc.rpc_blocking_client import gen_client_class
 from basic_socket_rpc.rpc_serialization_functions import (
@@ -9,6 +10,7 @@ from basic_socket_rpc.rpc_serialization_functions import (
     int_to_le_bytes_4,
     make_serializer,
     parse_no_response,
+    serialize_no_response,
     serialize_str,
 )
 from basic_socket_rpc.rpc_spec import RpcClientReq, RpcClientSpec
@@ -22,7 +24,7 @@ class greet_client_cmd_ids(Enum):
 
 
 greet_client_spec = RpcClientSpec(
-    requests=[
+    requests=(
         RpcClientReq(
             cmd_id=greet_client_cmd_ids.hello,
             serialize_request=serialize_str,
@@ -43,10 +45,10 @@ greet_client_spec = RpcClientSpec(
             serialize_request=serialize_no_response,
             parse_response=parse_no_response,
         ),
-    ],
+    ),
 )
 
-RpcClient = gen_client_class(greet_client_spec)
+RpcClient = cast(Any, gen_client_class(greet_client_spec))
 
 if __name__ == "__main__":
     # import logging

@@ -33,11 +33,12 @@ import builtins
 import traceback
 from enum import Enum
 from functools import partial
-from typing import Any, Callable, Iterable, List, NamedTuple, Optional, Tuple, Type, TypeVar, Union
+from typing import Any, Callable, Iterable, List, Optional, Tuple, Type, Union
 
 from .rpc_serialization_functions import (
     Buffer,
     deserialize_str,
+    int_from_le_bytes_1,
     int_from_le_bytes_2,
     int_from_le_bytes_4,
     int_to_le_bytes_1,
@@ -55,7 +56,7 @@ def is_exception(obj: Any) -> bool:
 built_in_exceptions = {k: v for k, v in builtins.__dict__.items() if is_exception(v)}
 
 
-def enum_from_value(enum_class: Type[Enum], value: int) -> Optional[Enum]:
+def enum_from_value(enum_class: Type[Enum], value: Any) -> Optional[Enum]:
     try:
         return enum_class(value)
     except ValueError:
@@ -92,7 +93,7 @@ REQ_HDR_PREFIX_SIZE = 5
 
 EnumTup = Tuple[str, int]
 
-EnumSeq = Union[List[EnumTup], Tuple[EnumTup]]
+EnumSeq = Union[List[EnumTup], Tuple[EnumTup, ...]]
 
 _enum_tup_to_bytes = lambda tup: (tup[0], int_to_le_bytes_1(tup[1]))
 
@@ -123,7 +124,7 @@ def unexpected_msg_error(expected: Enum, got: Enum):
     raise ProtocolError(f"Unexpected msg_type: {got.name}, should be: {expected.name}")
 
 
-def gen_enum_and_bytes(enum_name: str, enumerations: EnumSeq) -> Tuple[Enum]:
+def gen_enum_and_bytes(enum_name: str, enumerations: EnumSeq) -> Tuple[Any, Any]:
     enum_cls = Enum(enum_name, enumerations)
     enum_cls_bytes = Enum(f"{enum_name}Bytes", list(map(_enum_tup_to_bytes, enumerations)))
     return enum_cls, enum_cls_bytes
@@ -190,7 +191,7 @@ def serialize_server_init_resp(success: bool) -> bytes:
     )
 
 
-def serialize_exception(exc: Exception):
+def serialize_exception(exc: BaseException) -> bytes:
     name = type(exc).__name__
     reason = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     payload_bs = b"".join(map(serialize_str, [name, reason]))
@@ -200,7 +201,7 @@ def serialize_exception(exc: Exception):
     )
 
 
-def deserialize_exception_raise(bs: bytes):
+def deserialize_exception_raise(bs: Buffer) -> None:
     exception_type, remaining = deserialize_str(bs)
     exception_str, remaining = deserialize_str(remaining)
     if exception_type == "ValueError":
